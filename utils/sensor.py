@@ -1,43 +1,56 @@
 import numpy as np
-
+from parameter import *
+from skimage.draw import line
 
 def collision_check(x0, y0, x1, y1, ground_truth, robot_belief):
-    x0 = x0.round()
-    y0 = y0.round()
-    x1 = x1.round()
-    y1 = y1.round()
-    dx, dy = abs(x1 - x0), abs(y1 - y0)
+    """
+    Ray-cast from (x0,y0) to (x1,y1) in cell coordinates.
+    Update robot_belief cell-by-cell:
+      - FREE 영역은 FREE로,
+      - 첫 번째 OCCUPIED 셀은 OCCUPIED로 표시한 뒤 중단,
+      - 그 이후는 UNKNOWN(기존 상태 유지).
+    """
+    # 1) 정수 셀 인덱스로 변환
+    x0, y0 = int(round(x0)), int(round(y0))
+    x1, y1 = int(round(x1)), int(round(y1))
+
+    # 2) Bresenham 준비
+    dx = abs(x1 - x0)
+    dy = abs(y1 - y0)
     x, y = x0, y0
-    error = dx - dy
-    x_inc = 1 if x1 > x0 else -1
-    y_inc = 1 if y1 > y0 else -1
-    dx *= 2
-    dy *= 2
+    sx = 1 if x1 > x0 else -1
+    sy = 1 if y1 > y0 else -1
+    err = dx - dy
 
-    collision_flag = 0
-    max_collision = 2
-
-    while 0 <= x < ground_truth.shape[1] and 0 <= y < ground_truth.shape[0]:
-        k = ground_truth.item(y, x)
-        if k == 1 and collision_flag < max_collision:
-            collision_flag += 1
-            if collision_flag >= max_collision:
-                break
-
-        if k != 1 and collision_flag > 0:
+    # 3) 레이 캐스팅 루프
+    while True:
+        # 3.1) 맵 범위 체크
+        if not (0 <= x < ground_truth.shape[1] and 0 <= y < ground_truth.shape[0]):
             break
 
+        # 3.2) 셀 클래스 읽기
+        gt = ground_truth[y, x]
+
+        if gt == 1:
+            # 충돌 지점만 OCCUPIED로 업데이트하고 종료
+            robot_belief[y, x] = OCCUPIED
+            break
+        else:
+            # FREE 또는 기타(UNKNOWN) 영역은 FREE로 업데이트
+            robot_belief[y, x] = FREE
+
+        # 3.3) 종료 조건: 끝점 도달
         if x == x1 and y == y1:
             break
 
-        robot_belief.itemset((y, x), k)
-
-        if error > 0:
-            x += x_inc
-            error -= dy
-        else:
-            y += y_inc
-            error += dx
+        # 3.4) Bresenham step
+        e2 = 2 * err
+        if e2 > -dy:
+            err -= dy
+            x   += sx
+        if e2 <  dx:
+            err += dx
+            y   += sy
 
     return robot_belief
 
@@ -115,9 +128,14 @@ def sensor_work_heading(robot_position, sensor_range, robot_belief, ground_truth
     
     for angle in sweep_angles:
         x1 = x0 + np.cos(angle) * sensor_range    
-        y1 = y0 + np.sin(angle) * sensor_range
+        y1 = y0 + np.sin(-angle) * sensor_range
         x1_values.append(x1)
         y1_values.append(y1)    
+        
+        # # 5) Debug prints with f-strings
+        # print(f"[sensor] origin: ({x0:.2f}, {y0:.2f}), "
+        #       f"end: ({x1:.2f}, {y1:.2f}), angle: {np.degrees(angle):.1f}°")
+
         robot_belief = collision_check(x0, y0, x1, y1, ground_truth, robot_belief)
 
     return robot_belief

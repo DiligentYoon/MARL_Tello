@@ -18,7 +18,7 @@ Key configurations include:
 - GPU and logging options
 """
 
-FOLDER_NAME = 'test_2'
+FOLDER_NAME = 'test3'
 LOAD_FOLDER_NAME = 'joint_action_5_9_GT_MAAC'
 model_path = f'model/{FOLDER_NAME}'
 load_path = f'load_model/{LOAD_FOLDER_NAME}'
@@ -27,42 +27,37 @@ gifs_path = f'gifs/{FOLDER_NAME}'
 
 # save training data
 SUMMARY_WINDOW = 32
-LOAD_MODEL = True  # do you want to load the model trained before
+LOAD_MODEL = False  # do you want to load the model trained before
 SAVE_IMG_GAP = 1000
 NUM_EPISODE_BUFFER = 40
 
 # Sim parameters
 N_AGENTS = 4
-USE_CONTINUOUS_SIM = True
 NUM_SIM_STEPS = 6
-VELOCITY = 1
-YAW_RATE = 35 # in degrees
+MAX_VELOCITY = 1
+MAX_YAW_RATE = 35 # in degrees
 
 # Heading parameters
 FOV = 120   # in degrees
-V_FOV = 60
-MOUNTING_ANGLE = 15 # downwards
-NUM_ANGLES_BIN = 36
-NUM_HEADING_CANDIDATES = 3
-DRONE_HEIGHT = 2
+
+PATCH_SIZE = 30
 
 # map and planning resolution
-CELL_SIZE = 0.4  # meter
-NODE_RESOLUTION = 4.0  # meter
-FRONTIER_CELL_SIZE = 2 * CELL_SIZE
+CELL_SIZE = 0.01  # meter
 
-# map representation
-FREE = 255
-OCCUPIED = 1
-UNKNOWN = 127
+
+# belief map representation
+FREE = 0
+OCCUPIED = 2
+UNKNOWN = 1
+
+#Reward
+GOAL_THRESHOLD = 0.2
+REWARD_GOAL = 100
 
 # sensor and utility range
-SENSOR_RANGE = 10  # meter
+SENSOR_RANGE = 0.3  # meter
 UTILITY_RANGE = 0.9 * SENSOR_RANGE
-MIN_UTILITY = 1
-
-# updating map range w.r.t the robot
-UPDATING_MAP_SIZE = 4 * SENSOR_RANGE + 4 * NODE_RESOLUTION
 
 # training parameters
 MAX_EPISODE_STEP = 128
@@ -72,15 +67,25 @@ BATCH_SIZE = 256
 LR = 1e-5
 GAMMA = 1
 NUM_META_AGENT = 18
+ENTROPY_COEF    = 0.2    # 정책 엔트로피 가중치 (예시)
+TAU             = 0.005  # 타깃 네트워크 소프트 업데이트 비율
+SAVE_MODEL_GAP  = 1000   # 몇 에피소드마다 모델 저장할지
+
+
+# === APF 계수 ===
+K_ATT = 1.0   # 목표 유도력 계수
+K_REP = 0.5   # 장애물 반발력 계수
+
 
 # network parameters
-NODE_INPUT_DIM = 6
-EMBEDDING_DIM = 128
+OBS_DIM = 11    # [APF_x, APF_y,
+                #  pos_x, pos_y, heading,
+                #  vel_x, vel_y,
+                #  nbr_pos_x, nbr_pos_y, nbr_vel_x, nbr_vel_y]
 
-# Graph parameters
-NUM_NODE_NEIGHBORS = 5
-K_SIZE = NUM_NODE_NEIGHBORS**2   # the number of neighboring nodes
-NODE_PADDING_SIZE = 360  # the number of nodes will be padded to this value
+EMBEDDING_DIM = 128
+ACTION_DIM = 2  # [velocity, yaw_rate]
+
 
 # GPU usage
 USE_GPU = False  # do you want to collect training data using GPUs
