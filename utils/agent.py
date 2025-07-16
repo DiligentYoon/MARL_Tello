@@ -118,6 +118,8 @@ class Agent:
         # 6) torch 텐서로 변환: (1,11)
         return torch.from_numpy(obs).float().unsqueeze(0).to(self.device)
 
+
+
     def select_action(self, observation, deterministic=False):
         with torch.no_grad():
             mean, log_std = self.policy_net(observation)
@@ -137,6 +139,8 @@ class Agent:
         self.prev_yaw_rate = yaw.item()
 
         return v.item(), yaw.item()
+    
+
 
     def save_observation(self, obs):
         self.episode_buffer[0].append(obs)

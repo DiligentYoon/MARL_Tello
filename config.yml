@@ -6,25 +6,27 @@ paths:
 
 # Environment Settings
 env:
+  seed: 42
   physics_dt: 0.1
-  n_agents: 4
-  decimation: 6
+  device: "cuda"
+
+  num_agent: 4
   max_velocity: 1.0
   max_yaw_rate: 35.0 # degrees
   fov: 120.0 # degrees
   cell_size: 0.01 # meter
   sensor_range: 0.3 # meter
-  max_episode_steps: 128
-  apf_k_att: 1.0
-  apf_k_rep: 0.5
+  plot: False
+
   map_representation:
     free: 0
-    occupied: 2
     unknown: 1
-  reward:
+    occupied: 2
+    goal: 3
+
+  reward_info:
     goal_threshold: 0.2
     goal: 100
-  plot: False
 
 # Agent Settings
 agent:
@@ -40,16 +42,12 @@ agent:
 # Model (Neural Network) Settings
 model:
   actor:
-    obs_dim: 11
-    act_dim: 2
     lr: 0.00001
     hidden: [256, 256]
     log_std_min: -20
     log_std_max: 2
   
   critic:
-    obs_dim: 11
-    act_dim: 2
     lr: 0.00001
     hidden: [256, 256]
     

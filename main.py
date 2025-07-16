@@ -2,6 +2,8 @@ import yaml
 import torch
 from pathlib import Path
 from utils.model import ActorGaussianNet, CriticDeterministicNet
+from utils.apf_env import APFEnv
+from utils.env_apf_cfg import APFEnvCfg
 
 def load_config(config_path: str | Path = 'config.yml') -> dict:
     """
@@ -20,15 +22,16 @@ def load_config(config_path: str | Path = 'config.yml') -> dict:
 if __name__ == '__main__':
     # Example usage:
     config = load_config()
-    # Print some values to verify
-    print("--- Loaded Configuration ---")
-    print(f"Number of agents: {config['env']['n_agents']}")
-    print(f"Using GPU: {config['train']['use_gpu']}")
-    print("--------------------------")
 
-    print("[INFO] Generate Model")
+    env_cfg = APFEnvCfg(cfg=config["env"])
+    env = APFEnv(episode_index=0, cfg=env_cfg)
+    print("[INFO] Success to generate Environment")
+
     policy_cfg = config['model']['actor']
     value_cfg = config['model']['critic']
-    ActorGaussianNet(policy_cfg['obs_dim'], policy_cfg['act_dim'], device=torch.device('cuda'), cfg=policy_cfg)
-    CriticDeterministicNet(value_cfg['obs_dim'], value_cfg['act_dim'], device=torch.device('cuda'), cfg=value_cfg)
+    ActorGaussianNet(env.cfg.num_obs, env.cfg.num_act, device=torch.device('cuda'), cfg=policy_cfg)
+    CriticDeterministicNet(env.cfg.num_state, 1, device=torch.device('cuda'), cfg=value_cfg)
     print(f"[INFO] Success to generate model")
+
+
+    
