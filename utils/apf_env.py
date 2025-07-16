@@ -6,7 +6,6 @@ from utils.utils import *
 from .env import Env, MapInfo
 
 from .env_apf_cfg import APFEnvCfg
-from .agent import Agent
 
 
 
@@ -30,10 +29,16 @@ class APFEnv(Env):
         self.is_collided_obstacle = np.zeros((self.num_agent, 1), dtype=np.bool_)
         self.is_collided_drone = np.zeros((self.num_agent, 1), dtype=np.bool_)
         self.is_reached_goal = np.zeros((self.num_agent, 1), dtype=np.bool_)
+        self.is_first_reached = np.ones((self.num_agent, 1), dtype=np.bool_)
 
 
         # Optional Additional State
         self.infos["explored_rate"] = np.zeros((1, ), dtype=np.float32)
+
+    def reset(self):
+        # 나머지 플래그는 사용하기 전 계산 되므로 초기화 X
+        self.is_first_reached = np.ones((self.num_agent, 1), dtype=np.bool_)
+        return super().reset()
 
 
     def _compute_intermediate_values(self):
@@ -88,9 +93,9 @@ class APFEnv(Env):
 
         # 자신의 Velocity (vx, vy) [n, 2]
         rads = np.radians(self.angles)
-        vel_x = self.robot_velocities * np.cos(rads)
-        vel_y = self.robot_velocities * np.sin(rads)
-        velocities = np.stack((vel_x, vel_y), axis=1)
+        vel_x = self.robot_velocities * np.cos(rads).reshape(-1, 1)
+        vel_y = self.robot_velocities * np.sin(rads).reshape(-1, 1)
+        velocities = np.hstack((vel_x, vel_y))
 
         # Closest neighbor state [n, 4] (pos_x, pos_y, vel_x, vel_y)
         neighbor_states = self.neighbor_states
@@ -119,9 +124,9 @@ class APFEnv(Env):
 
         # 자신의 Velocity (vx, vy) [n, 2]
         rads = np.radians(self.angles)
-        vel_x = self.robot_velocities * np.cos(rads)
-        vel_y = self.robot_velocities * np.sin(rads)
-        velocities = np.stack((vel_x, vel_y), axis=1)
+        vel_x = self.robot_velocities * np.cos(rads).reshape(-1, 1)
+        vel_y = self.robot_velocities * np.sin(rads).reshape(-1, 1)
+        velocities = np.hstack((vel_x, vel_y))
 
         # Closest neighbor state [n, 4] (pos_x, pos_y, vel_x, vel_y)
         neighbor_states = self.neighbor_states
@@ -202,11 +207,22 @@ class APFEnv(Env):
     
 
     def _get_rewards(self):
-        pass
+        reward =  np.array(self.prev_dists) - np.array(self.cur_dists)
+
+        for i in range(self.num_agent):
+            
+            if self.is_reached_goal[i] and self.is_first_reached[i]:
+                reward += self.cfg.reward_info["goal"]
+                self.is_first_reached[i] = False
+            
+            if self.is_collided_drone[i] or self.is_collided_obstacle[i]:
+                reward += self.cfg.reward_info["collision"]
+
+        return reward
 
 
 
-    # ========== Auxilary Methods ==============
+    # ============= Auxilary Methods ==============
     def compute_apf_patch(
         self,
         drone_cell: np.ndarray,        # [col, row] in cell indices

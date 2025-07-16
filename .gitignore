@@ -1,2 +1,4 @@
 *.gif
 **/gifs/
+**/__pycache__/
+**/*.pyc

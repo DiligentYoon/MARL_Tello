@@ -1,8 +1,4 @@
 import os
-import matplotlib.pyplot as plt
-from skimage import io
-from skimage.measure import block_reduce
-from copy import deepcopy
 import numpy as np
 from shapely.geometry import Point, Polygon
 from skimage.draw import polygon as sk_polygon
@@ -106,9 +102,11 @@ class Env():
                 self.angles[i],
                 360
             )
+
+        self.prev_dists = [np.linalg.norm(self.robot_locations[i] - self.goal_coords) for i in range(self.num_agent)]
         
         self._compute_intermediate_values()
-        self.obs_buf = self._get_observations(robot_list=None)
+        self.obs_buf = self._get_observations()
         self._update_infos()
 
         return self.obs_buf, self.infos
@@ -138,7 +136,7 @@ class Env():
 
 
     def import_ground_truth(self, episode_index) -> Tuple[np.ndarray, np.ndarray]:
-        map_dir = '/home/dbtngud/myproject/utils/myMap'
+        map_dir = os.path.join(os.getcwd(), "map")
         map_list = sorted(os.listdir(map_dir))
         map_index = episode_index % len(map_list)
         map_path = os.path.join(map_dir, map_list[map_index])
@@ -199,11 +197,6 @@ class Env():
                 info -> dict[str, [n, dim]]     : additional metric 
 
         """
-        self.num_step += 1
-        n = len(actions)
-
-        # 전처리 로직
-        self.prev_dists = [np.linalg.norm(self.robot_locations[i] - self.goal_coords) for i in range(n)]
         
         # stochastic action인 경우를 대비, 한번 더 클램핑
         self._pre_apply_action(actions)
@@ -229,8 +222,11 @@ class Env():
             cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
             self.update_robot_belief(cell, angle_new)
         
+        # Potential Based Reward Shaping을 수행하기 위한 현재 거리 계산
+        self.cur_dists = [np.linalg.norm(self.robot_locations[i] - self.goal_coords) for i in range(self.num_agent)]
 
         # Done 신호 생성
+        self.num_step += 1
         self.termination_buf, self.truncation_buf, self.reached_goal = self._get_dones()
 
         # 보상 계산
@@ -242,8 +238,9 @@ class Env():
 
          # ======== 추가 정보 infos 업데이트 ===========
         self._update_infos()
+        self.prev_dists = self.cur_dists
 
-        return self.obs_buf, self.state_buf, self.actions, self.reward_buf, self.termination_buf, self.truncation_buf, self.infos
+        return self.obs_buf, self.state_buf, self.reward_buf, self.termination_buf, self.truncation_buf, self.infos
     
 
     # =============== Base Env Methods ===================
@@ -264,7 +261,7 @@ class Env():
                                      -self.max_ang_vel,
                                       self.max_ang_vel)
         
-        self.robot_velocities[:, :] = self.actions
+        self.robot_velocities[:, :] = self.actions[:, 0].reshape(-1, 1)
 
 
 

@@ -1,9 +1,15 @@
 import yaml
 import torch
+import numpy as np
 from pathlib import Path
 from utils.model import ActorGaussianNet, CriticDeterministicNet
 from utils.apf_env import APFEnv
 from utils.env_apf_cfg import APFEnvCfg
+
+
+
+print(f"CUDA 사용 가능 여부: {torch.cuda.is_available()}")
+
 
 def load_config(config_path: str | Path = 'config.yml') -> dict:
     """
@@ -21,6 +27,7 @@ def load_config(config_path: str | Path = 'config.yml') -> dict:
 
 if __name__ == '__main__':
     # Example usage:
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     config = load_config()
 
     env_cfg = APFEnvCfg(cfg=config["env"])
@@ -29,9 +36,18 @@ if __name__ == '__main__':
 
     policy_cfg = config['model']['actor']
     value_cfg = config['model']['critic']
-    ActorGaussianNet(env.cfg.num_obs, env.cfg.num_act, device=torch.device('cuda'), cfg=policy_cfg)
-    CriticDeterministicNet(env.cfg.num_state, 1, device=torch.device('cuda'), cfg=value_cfg)
+    policy = ActorGaussianNet(env.cfg.num_obs, env.cfg.num_act, device=torch.device('cuda'), cfg=policy_cfg)
+    value = CriticDeterministicNet(env.cfg.num_state, 1, device=torch.device('cuda'), cfg=value_cfg)
     print(f"[INFO] Success to generate model")
 
+    policy.to(device)
 
-    
+    obs, info = env.reset()
+
+    num_agents = obs.shape[0]  # 또는 reset 후 받은 obs의 shape[0]으로 에이전트 수 확인
+    num_actions = env.cfg.num_act
+
+    actions, _ = policy.sample(torch.tensor(obs, device=torch.device('cuda'), dtype=torch.float32))
+
+    next_obs, next_state, reward, terminated, truncated, infos = env.step(actions.cpu().detach().numpy())
+    print(f"[INFO] Success to Implement Step Methods !")

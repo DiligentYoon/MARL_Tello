@@ -27,6 +27,7 @@ env:
   reward_info:
     goal_threshold: 0.2
     goal: 100
+    collision: -100
 
 # Agent Settings
 agent:
