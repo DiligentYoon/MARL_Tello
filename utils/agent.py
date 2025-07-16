@@ -3,11 +3,20 @@ import numpy as np
 from utils.utils import *
 from parameter import *
 
+from torch.nn import Module
+from .env import Env
+
 class Agent:
-    def __init__(self, id, policy_net, env, fov, heading, sensor_range, device='cpu', plot=False):
+    def __init__(self, 
+                 id: int, 
+                 policy_net: Module, 
+                 env:Env, 
+                 cfg: dict,
+                 device: torch.device = torch.device("cuda")):
+        
+        self.cfg = cfg
         self.id          = id
         self.device      = device
-        self.plot        = plot
         self.policy_net  = policy_net
 
         # 환경에서 주어진 시작 위치, 헤딩으로 초기 상태 설정
@@ -34,9 +43,11 @@ class Agent:
         # 학습용 버퍼
         self.episode_buffer = [[] for _ in range(NUM_EPISODE_BUFFER)]
 
+        # 로컬 맵 Patch
         self.patch = np.ones((PATCH_SIZE, PATCH_SIZE), dtype=env.robot_belief.dtype)  
 
-        # (시각화용) 궤적 기록
+        # 시각화용 궤적 기록
+        self.plot = self.cfg["plot"]
         if self.plot:
             self.trajectory_x = []
             self.trajectory_y = []

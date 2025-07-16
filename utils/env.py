@@ -7,6 +7,7 @@ import numpy as np
 from shapely.geometry import Point, Polygon
 from skimage.draw import polygon as sk_polygon
 from PIL import Image
+from abc import abstractmethod
 
 
 from utils.sensor import sensor_work_heading
@@ -14,46 +15,76 @@ from parameter import *
 from utils.utils import *
 
 
+class MapInfo:
+    def __init__(self, map=None, map_origin_x=None, map_origin_y=None, cell_size=None):
+        self.map = map
+        self.map_origin_x = map_origin_x
+        self.map_origin_y = map_origin_y
+        self.cell_size = cell_size
+
+    def update_map_info(self, map, map_origin_x, map_origin_y):
+        self.map = map
+        self.map_origin_x = map_origin_x
+        self.map_origin_y = map_origin_y
+
+
+
 class Env:
-    def __init__(self, episode_index, fov, sensor_range, plot=False):
+    def __init__(self, episode_index, cfg: dict):
+        self.cfg = cfg
         self.episode_index = episode_index
-        self.plot = plot
+        self.reached_goal = [False] * self.num_agent
+        self.num_agent = self.cfg["n_agents"]
+        self.plot = self.cfg["plot"]
 
-        # 1) Load ground truth map and initial cell
-        self.ground_truth, _ = self.import_ground_truth(episode_index)
-        H, W = self.ground_truth.shape
-        self.ground_truth_size = (H, W)
-        self.cell_size = CELL_SIZE  # meter
+        self.fov = self.cfg['fov']
+        self.sensor_range = self.cfg['sensor_range']
+        self.max_lin_vel = self.cfg['max_velocity']
+        self.max_ang_vel = self.cfg['max_yaw_rate']
 
-        # 2) Initialize belief map
-        self.robot_belief = np.ones((H, W), dtype=np.uint8) * UNKNOWN
+        self.map_mask = self.cfg["map_representation"]
+        self.cell_size = self.cfg["cell_size"]
+
+        self.belief_info = MapInfo(map = None,
+                                   map_origin_x=0.0,
+                                   map_origin_y=0.0,
+                                   cell_size=self.cell_size)
+
+        # Optional plotting setup
+        if self.plot:
+            self.frame_files = []
+
+        # Optional Additional State
+        self.infos = {}
+
+
+    def reset(self):
+        # Load ground truth map and initial cell
+        self.ground_truth, _ = self.import_ground_truth(self.episode_index)
+        self.ground_truth_size = self.ground_truth.shape
+
+        # Initialize belief map
+        self.robot_belief = np.ones(self.ground_truth_size, dtype=np.uint8) * self.map_mask["unknown"]
         self.belief_origin_x = 0.0
         self.belief_origin_y = 0.0
-        self.sensor_range = sensor_range
-        self.fov = fov
 
-        
-        # 3) Randomly place N_AGENTS in start zone (value == 2)
-        H = self.ground_truth.shape[0]
-        start_cells = np.column_stack((np.nonzero(self.ground_truth == 2)[0], np.nonzero(self.ground_truth == 2)[1]))
-        idx = np.random.choice(len(start_cells), N_AGENTS, replace=False)
-        chosen = start_cells[idx]
-        rows, cols = chosen[:, 0], chosen[:, 1]
-        world_x = self.belief_origin_x + cols * self.cell_size
-        world_y = self.belief_origin_y + (H -1 - rows) * self.cell_size
+        # Randomly place N_AGENTS in start zone (value == 2)
+        world_x, world_y = self._set_init_state()
         self.robot_locations = np.stack([world_x, world_y], axis=1)
 
-        # 4) Initialize headings
-        self.angles = np.random.uniform(0, 360, size=N_AGENTS)
+        # Compute goal coordinates (average over all goal cells)
+        goal_world =self._set_goal_state()
+        self.goal_coords = goal_world
 
-        # 5) Prepare belief_info for coordinate conversions
-        self.belief_info = MapInfo(self.robot_belief,
-                                   self.belief_origin_x,
-                                   self.belief_origin_y,
-                                   self.cell_size)
+        # Prepare belief_info for coordinate conversions
+        self.belief_info.map = self.robot_belief
+        self.belief_info.map_origin_x = self.belief_origin_x
+        self.belief_info.map_origin_y = self.belief_origin_y
 
-        # 6) Perform initial sensing update for each agent
-        for i in range(N_AGENTS):
+        # Initialize headings
+        self.angles = np.random.uniform(0, 360, size=self.num_agent)
+        # Perform initial sensing update for each agent
+        for i in range(self.num_agent):
             cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
             
             self.robot_belief = sensor_work_heading(
@@ -64,21 +95,33 @@ class Env:
                 self.angles[i],
                 360
             )
+        
+        self._get_observation()
+        self._update_infos()
 
-        # 7) Compute goal coordinates (average over all goal cells)
+
+    def _set_goal_state(self):
         goal_cells = np.column_stack(np.nonzero(self.ground_truth == 3))
         goal_world = []
+
         for row, col in goal_cells:
             x = self.belief_origin_x + col * self.cell_size
-            y = self.belief_origin_y + (H - 1 - row) * self.cell_size
+            y = self.belief_origin_y + (self.ground_truth_size[0] - 1 - row) * self.cell_size
             goal_world.append([x, y])
-        self.goal_coords = np.mean(goal_world, axis=0)
 
-        self.reached_goal = [False] * N_AGENTS
-        
-        # 8) Optional plotting setup
-        if self.plot:
-            self.frame_files = []
+        return np.mean(goal_world, axis=0)
+
+    def _set_init_state(self):
+        H = self.ground_truth.shape[0]
+        start_cells = np.column_stack((np.nonzero(self.ground_truth == 2)[0], np.nonzero(self.ground_truth == 2)[1]))
+        idx = np.random.choice(len(start_cells), self.num_agent, replace=False)
+        chosen = start_cells[idx]
+        rows, cols = chosen[:, 0], chosen[:, 1]
+        world_x = self.belief_origin_x + cols * self.cell_size
+        world_y = self.belief_origin_y + (H -1 - rows) * self.cell_size
+        return world_x, world_y
+
+
 
     def import_ground_truth(self, episode_index):
         map_dir = '/home/dbtngud/myproject/utils/myMap'
@@ -120,14 +163,94 @@ class Env:
                                         self.ground_truth, heading, self.fov)
 
 
-    def check_done(self) -> int:
+
+    def step(self, actions, dt=0.1):
+        n = len(actions)
+
+        # 전처리 로직
+        prev_dists = [np.linalg.norm(self.robot_locations[i] - self.goal_coords) for i in range(n)]
+        
+        # stochastic action인 경우를 대비, 한번 더 클램핑
+        self._pre_apply_action(actions)
+
+        # 위치·헤딩 업데이트 + Belief 갱신
+        for i, (v, yaw_rate) in enumerate(actions):
+            # 이미 도달한 에이전트는 대기
+            if self.reached_goal[i]:
+                continue
+            
+            # a) 헤딩 갱신
+            angle_new = (self.angles[i] + yaw_rate * dt) % 360
+            self.angles[i] = angle_new
+
+            # b) 위치 갱신
+            dx = v * dt * np.cos(np.radians(angle_new))
+            dy = v * dt * np.sin(np.radians(angle_new))
+            self.robot_locations[i] += np.array([dx, dy])
+
+            # c) Belief 업데이트
+            cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
+            self.update_robot_belief(cell, angle_new)
+        
+        # 보상 계산 및 도달 플래그 설정
+        reward_list = self._get_rewards()
+        
+        next_observation_list = self._get_observation()
+
+        # ============== Environment Specific =================
+        cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
+        rows, cols = cells[:, 1], cells[:, 0]
+
+        # 전체 맵 판정
+        in_goal_mask    = (self.ground_truth[rows, cols] == 3)
+        hit_obstacle_mask = (self.ground_truth[rows, cols] == 1)
+
+        for i in range(n):
+            curr_dist   = np.linalg.norm(self.robot_locations[i] - self.goal_coords)
+            dist_reward = prev_dists[i] - curr_dist
+            reward      = dist_reward
+
+            # goal 도달 시 첫 보너스
+            if in_goal_mask[i]:
+                if not self.reached_goal[i]:
+                    self.reached_goal[i] = True
+                    reward += REWARD_GOAL  # 첫 도달 보너스
+                # 모두 도달 대기 로직 유지
+
+            if hit_obstacle_mask[i]:
+                reward -= 100.0
+
+            reward_list.append(reward)
+        
+        # =================================================
+
+
+        # ========= Done 신호 생성 + 탐사율 업데이트 ===========
+        done = self.check_done()
+        self.evaluate_exploration_rate()
+
+         # ======== 추가 정보 infos 업데이트 ===========
+        self._update_infos()
+
+        return reward_list, done, self.infos
+    
+    def _pre_apply_action(self, actions):
+        self.actions = actions
+        self.actions[:, 0] = np.clip(actions[:, 0] * self.max_lin_vel,
+                                     -self.max_lin_vel,
+                                      self.max_lin_vel)
+        
+        self.actions[:, 1] = np.clip(actions[:, 1],
+                                     -self.max_ang_vel,
+                                      self.max_ang_vel)
+
+    def check_done(self) -> bool:
         """
         Returns:
             status_code (int):
-              0  = 계속 진행
-              1  = 목표 도달
-             -1  = 장애물 충돌 또는 에이전트 간 충돌
-        Also sets self.done = (status_code != 0).
+            0  = 계속 진행
+            1  = 목표 도달
+            -1  = 장애물 충돌 또는 에이전트 간 충돌
         """
         # 1) 로봇 셀 좌표
         cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
@@ -165,71 +288,6 @@ class Env:
 
         return code
 
-
-    def step(self, actions, dt=0.1):
-        n = len(actions)
-
-        # 1) 이전 거리 저장
-        prev_dists = [
-            np.linalg.norm(self.robot_locations[i] - self.goal_coords)
-            for i in range(n)
-        ]
-        
-
-        # 2) 위치·헤딩 업데이트 + Belief 갱신
-        for i, (v, yaw_rate) in enumerate(actions):
-            # 이미 도달한 에이전트는 대기
-            if self.reached_goal[i]:
-                continue
-
-            # a) 헤딩 갱신
-            angle_new = (self.angles[i] + yaw_rate * dt) % 360
-            self.angles[i] = angle_new
-
-            # b) 위치 갱신
-            dx = v * dt * np.cos(np.radians(angle_new))
-            dy = v * dt * np.sin(np.radians(angle_new))
-            self.robot_locations[i] += np.array([dx, dy])
-
-            # c) Belief 업데이트
-            cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
-            self.update_robot_belief(cell, angle_new)
-        
-        # 3) 보상 계산 및 도달 플래그 설정
-        reward_list = []
-
-        # 먼저 각 에이전트의 셀 위치 한 번에 계산
-        cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
-        rows, cols = cells[:, 1], cells[:, 0]
-
-        # 전체 맵 판정
-        in_goal_mask    = (self.ground_truth[rows, cols] == 3)
-        hit_obstacle_mask = (self.ground_truth[rows, cols] == 1)
-
-        for i in range(n):
-            curr_dist   = np.linalg.norm(self.robot_locations[i] - self.goal_coords)
-            dist_reward = prev_dists[i] - curr_dist
-            reward      = dist_reward
-
-            # goal 도달 시 첫 보너스
-            if in_goal_mask[i]:
-                if not self.reached_goal[i]:
-                    self.reached_goal[i] = True
-                    reward += REWARD_GOAL  # 첫 도달 보너스
-                # 모두 도달 대기 로직 유지
-
-            if hit_obstacle_mask[i]:
-                reward -= 100.0
-
-            reward_list.append(reward)
-
-        done = self.check_done()
-        info = {}
-
-        self.evaluate_exploration_rate()
-
-        return reward_list, done, info
-
     def evaluate_exploration_rate(self):
         """
         Updates self.explored_rate to be the fraction of map cells
@@ -240,16 +298,35 @@ class Env:
         belief = self.robot_belief
         total_cells = belief.size
         # Count cells that are not UNKNOWN
-        explored_cells = np.count_nonzero(belief != UNKNOWN)
+        explored_cells = np.count_nonzero(belief != self.map_mask['unknown'])
         # Compute exploration rate
         self.explored_rate = explored_cells / total_cells
+
+
+    @abstractmethod
+    def _get_observation(self):
+        raise NotImplementedError(f"Please implement the '_get_observation' method for {self.__class__.__name__}.")
     
+
+    @abstractmethod
+    def _get_rewards(self):
+        raise NotImplementedError(f"Please implement the '_get_rewards' method for {self.__class__.__name__}.")
+
+
+    @abstractmethod
+    def _update_infos(self):
+        raise NotImplementedError(f"Please implement the '_get_rewards' method for {self.__class__.__name__}.")
+
+
+    # ================ 삭제 후보 ==================== # 
+
     def heading_to_vector(self, heading, length=1):
         # Convert heading to vector
         if isinstance(heading, (list, np.ndarray)):
             heading = heading[0]
         heading_rad = np.radians(heading)
         return np.cos(heading_rad) * length, np.sin(heading_rad) * length
+
 
     def create_sensing_mask(self, location, heading):
         mask = np.zeros_like(self.ground_truth)
@@ -270,8 +347,8 @@ class Env:
         else:
             angle_range = np.concatenate([np.linspace(start_angle, 360, 10), np.linspace(0, end_angle, 10)])
         for angle in angle_range: 
-            x = location_cell[0] + self.sensor_range/CELL_SIZE * np.cos(np.radians(angle))
-            y = location_cell[1] + self.sensor_range/CELL_SIZE * np.sin(np.radians(angle))
+            x = location_cell[0] + self.sensor_range/self.cell_size * np.cos(np.radians(angle))
+            y = location_cell[1] + self.sensor_range/self.cell_size * np.sin(np.radians(angle))
             sector_points.append(Point(x, y))
         sector_points.append(robot_point) 
 
@@ -292,3 +369,4 @@ class Env:
        
         return mask
     
+    # ============================================== # 

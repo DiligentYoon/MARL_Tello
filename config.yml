@@ -1,0 +1,67 @@
+# File/Path Settings
+paths:
+  folder_name: 'test3'
+  load_folder_name: 'joint_action_5_9_GT_MAAC'
+  # model_path, load_path etc. will be constructed from the above in the code
+
+# Environment Settings
+env:
+  physics_dt: 0.1
+  n_agents: 4
+  decimation: 6
+  max_velocity: 1.0
+  max_yaw_rate: 35.0 # degrees
+  fov: 120.0 # degrees
+  cell_size: 0.01 # meter
+  sensor_range: 0.3 # meter
+  max_episode_steps: 128
+  apf_k_att: 1.0
+  apf_k_rep: 0.5
+  map_representation:
+    free: 0
+    occupied: 2
+    unknown: 1
+  reward:
+    goal_threshold: 0.2
+    goal: 100
+  plot: False
+
+# Agent Settings
+agent:
+  gamma: 1.0
+  tau: 0.005 # for target network soft update
+  num_meta_agent: 18
+  buffer:
+    replay_size: 10000
+    minimum_size: 2000
+    batch_size: 256
+    num_episode_buffer: 40
+
+# Model (Neural Network) Settings
+model:
+  actor:
+    obs_dim: 11
+    act_dim: 2
+    lr: 0.00001
+    hidden: [256, 256]
+    log_std_min: -20
+    log_std_max: 2
+  
+  critic:
+    obs_dim: 11
+    act_dim: 2
+    lr: 0.00001
+    hidden: [256, 256]
+    
+
+# Training Settings
+train:
+  load_model: false
+  save_model_gap: 1000 # episodes
+  save_img_gap: 1000
+  summary_window: 32
+  algo: 3 # 0: SAC, 1:MAAC, 2: Ground Truth, 3: MAAC and Ground Truth
+  use_gpu: false
+  use_gpu_global: true
+  num_gpu: 1
+  use_wandb: false

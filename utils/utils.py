@@ -8,9 +8,9 @@ from parameter import *
 
 def get_cell_position_from_coords(coords, map_info, check_negative=True):
     """
-    coords: array-like of shape (2,) or (N,2) in world [x, y] coordinates
-    map_info: MapInfo 객체 (map, map_origin_x, map_origin_y, cell_size)
-    check_negative: True일 경우, boundary 밖으로 나간 인덱스를 자동으로 클램핑
+        coords: array-like of shape (2,) or (N,2) in world [x, y] coordinates
+        map_info: MapInfo 객체 (map, map_origin_x, map_origin_y, cell_size)
+        check_negative: True일 경우, boundary 밖으로 나간 인덱스를 자동으로 클램핑
     """
     # 1) 입력 형태 정리
     single_cell = False
@@ -136,16 +136,16 @@ def make_gif_test(path, n, frame_files, rate, n_agents, fov, sensor_range):
 
 
 
-class MapInfo:
-    def __init__(self, map, map_origin_x, map_origin_y, cell_size):
-        self.map = map
-        self.map_origin_x = map_origin_x
-        self.map_origin_y = map_origin_y
-        self.cell_size = cell_size
+# class MapInfo:
+#     def __init__(self, map, map_origin_x, map_origin_y, cell_size):
+#         self.map = map
+#         self.map_origin_x = map_origin_x
+#         self.map_origin_y = map_origin_y
+#         self.cell_size = cell_size
 
-    def update_map_info(self, map, map_origin_x, map_origin_y):
-        self.map = map
-        self.map_origin_x = map_origin_x
-        self.map_origin_y = map_origin_y
+#     def update_map_info(self, map, map_origin_x, map_origin_y):
+#         self.map = map
+#         self.map_origin_x = map_origin_x
+#         self.map_origin_y = map_origin_y
 
 
