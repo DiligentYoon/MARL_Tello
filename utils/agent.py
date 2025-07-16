@@ -140,7 +140,9 @@ class Agent:
 
         return v.item(), yaw.item()
     
-
+    def record_transition(self):
+        # To Do..
+        pass
 
     def save_observation(self, obs):
         self.episode_buffer[0].append(obs)

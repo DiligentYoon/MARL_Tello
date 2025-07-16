@@ -73,7 +73,7 @@ class APFEnv(Env):
     
     def _get_observations(self) -> np.ndarray:
         """
-            Observation Config [n, 11]
+            Observation Config for Actor Network [n, 11]
                 1. APF_vector : [n, 2]
                 2. Position (x, y, yaw) : [n , 3]
                 3. Velocity (vx, vy) : [n, 2]
@@ -137,7 +137,6 @@ class APFEnv(Env):
     def _get_dones(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
             특정 종료조건 및 타임아웃 계산
-
             Return :
                 1. terminated : 
                     1-1. 벽에 충돌
@@ -152,11 +151,12 @@ class APFEnv(Env):
 
         # ============== Done 계산 로직 ===================
 
-        # Truncated 계산 (타임아웃)
+        # ---- Truncated 계산 -----
         timeout = self.num_step >= self.max_episode_steps - 1
         truncated = np.full((self.num_agent, 1), timeout, dtype=np.bool_)
 
-        # Terminated 계산 
+
+        # ---- Terminated 계산 ----
         terminated = np.zeros((self.num_agent, 1), dtype=np.bool_)
 
         # 로봇 셀 좌표 변환
@@ -202,7 +202,7 @@ class APFEnv(Env):
     
 
     def _get_rewards(self):
-        
+        pass
 
 
 

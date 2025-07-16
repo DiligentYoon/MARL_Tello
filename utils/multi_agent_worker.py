@@ -60,17 +60,17 @@ class MultiAgentWorker:
 
         # 에피소드 루프
         for step in range(MAX_EPISODE_STEP):
-            # 1) 관측
+            # 1) 관측 : env로 교체
             observations = [
                 agent.get_observation(self.robot_list)
                 for agent in self.robot_list
             ]
-            # 2) 행동
+            # 2) 행동 : agent 유지
             actions = [
                 agent.select_action(obs)
                 for agent, obs in zip(self.robot_list, observations)
             ]
-            # 3) 환경 스텝
+            # 3) 환경 스텝 : env로 교체
             rewards, done, info = self.env.step(actions)
 
             for i, agent  in enumerate(self.robot_list):
@@ -78,7 +78,7 @@ class MultiAgentWorker:
                 new_heading = self.env.angles[i]
                 agent.update_state(new_loc, new_heading)
             
-            # 4) next 관측
+            # 4) next 관측 -> 삭제 (step에서 가져옴)
             next_observations = [
                 agent.get_observation(self.robot_list)
                 for agent in self.robot_list
