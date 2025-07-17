@@ -52,8 +52,8 @@ class ActorGaussianNet(nn.Module):
         # correction for Tanh squashing
         logp = dist.log_prob(z).sum(-1, keepdim=True) \
                - (2*(math.log(2) - z - F.softplus(-2*z))).sum(-1, keepdim=True)
+        
         return action, logp
-
 
 
 class CriticDeterministicNet(nn.Module):

@@ -3,7 +3,7 @@ import torch
 from typing import Mapping, Optional
 from torch.nn import Module
 
-class Agent:
+class MultiAgent:
     """
     Base Multi-Agent class for Centralized Training and Decentralized Execution (CTDE).
 
@@ -17,6 +17,7 @@ class Agent:
     3. Providing the `act` method for inference (can be used by the driver or parts of it, like the policy network, can be shipped to workers).
     """
     def __init__(self,
+                 num_agents: int,
                  models: Mapping[str, Module],
                  device: torch.device,
                  cfg: Optional[dict] = None):
@@ -24,6 +25,7 @@ class Agent:
         self.models = models
         self.cfg = cfg if cfg is not None else {}
         self.device = device
+        self.num_agents = num_agents
 
         # A dictionary to register modules for checkpointing by the driver
         self.checkpoint_modules = {}

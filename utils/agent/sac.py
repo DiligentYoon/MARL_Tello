@@ -54,10 +54,10 @@ class SAC(Agent):
         _cfg = copy.deepcopy(SAC_DEFAULT_CONFIG)
         _cfg.update(cfg if cfg is not None else {})
 
+        super().__init__(id=id, models=models, device=device, cfg=_cfg)
+
         self.observation_space = observation_space
         self.action_space = action_space
-
-        super().__init__(id=id, models=models, device=device, cfg=_cfg)
 
         self.policy = self.models.get("actor")
         self.value = self.models.get("critic")

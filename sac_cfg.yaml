@@ -52,6 +52,9 @@ agent:
   initial_entropy_value: 0.2   # initial entropy value
   target_entropy: null         # target entropy
 
+  buffer:
+    replay_size: 10000
+
   experiment:
     directory: "MARL"
     experiment_name: ""
