@@ -1,24 +1,20 @@
 import os
 import numpy as np
-from shapely.geometry import Point, Polygon
-from skimage.draw import polygon as sk_polygon
 from PIL import Image
 from abc import abstractmethod
 from typing import Tuple
 
 from .env_cfg import EnvCfg
-
-from utils.sensor import sensor_work_heading
-from parameter import *
 from utils.utils import *
 
 
 class MapInfo:
-    def __init__(self, map=None, map_origin_x=None, map_origin_y=None, cell_size=None):
+    def __init__(self, map=None, map_origin_x=None, map_origin_y=None, cell_size=None, map_mask=None):
         self.map = map
         self.map_origin_x = map_origin_x
         self.map_origin_y = map_origin_y
         self.cell_size = cell_size
+        self.map_mask = map_mask
 
     def update_map_info(self, map, map_origin_x, map_origin_y):
         self.map = map
@@ -48,7 +44,8 @@ class Env():
         self.belief_info = MapInfo(map = None,
                                    map_origin_x=0.0,
                                    map_origin_y=0.0,
-                                   cell_size=self.cell_size)
+                                   cell_size=self.cell_size,
+                                   map_mask=self.map_mask)
         
         # Location은 2D, Velocity는 스칼라 커맨드
         self.robot_locations = np.zeros((self.num_agent, 2), dtype=np.float32)
@@ -101,7 +98,8 @@ class Env():
                 self.robot_belief,
                 self.ground_truth,
                 self.angles[i],
-                360
+                360,
+                self.map_mask
             )
 
         self.prev_dists = [np.linalg.norm(self.robot_locations[i] - self.goal_coords) for i in range(self.num_agent)]
@@ -173,7 +171,7 @@ class Env():
 
     def update_robot_belief(self, robot_cell, heading) -> None:
         self.robot_belief = sensor_work_heading(robot_cell, round(self.sensor_range / self.cell_size), self.robot_belief,
-                                        self.ground_truth, heading, self.fov)
+                                        self.ground_truth, heading, self.fov, self.map_mask)
 
 
     def step(self, actions) -> Tuple[np.ndarray,

@@ -3,7 +3,6 @@ import numpy as np
 from .apf_env_cfg import APFEnvCfg
 
 from typing import Tuple
-from utils.sensor import *
 from utils.utils import *
 from utils.base.env.env import Env, MapInfo
 
