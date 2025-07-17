@@ -6,11 +6,6 @@ import torch.nn.functional as F
 LOG_STD_MIN = -20
 LOG_STD_MAX = 2
 
-def weights_init_(m):
-    if isinstance(m, nn.Linear):
-        nn.init.orthogonal_(m.weight, gain=1.0)
-        nn.init.constant_(m.bias, 0)
-
 
 class ActorGaussianNet(nn.Module):
     def __init__(self, obs_dim, action_dim, device, cfg):
@@ -28,7 +23,6 @@ class ActorGaussianNet(nn.Module):
         self.net = nn.Sequential(*layers)
         self.mu_layer    = nn.Linear(hidden_sizes[-1], action_dim)
         self.log_std_layer = nn.Linear(hidden_sizes[-1], action_dim)
-        self.apply(weights_init_)
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
         """
@@ -39,16 +33,16 @@ class ActorGaussianNet(nn.Module):
         x = self.net(obs)
         mu = self.mu_layer(x)
         log_std = self.log_std_layer(x)
-        log_std = torch.clamp(log_std, self.cfg["log_std_min"], self.cfg["log_std_max"])
+        log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
         return mu, log_std
     
 
     def sample(self, obs: torch.Tensor) -> torch.Tensor:
         """
-        Samples an action from the policy, using reparameterization trick.
-        Returns:
-            action: (batch, action_dim)
-            logp:   (batch, 1) log probability of sampled action
+            Samples an action from the policy, using reparameterization trick.
+            Returns:
+                action: (batch, action_dim)
+                logp:   (batch, 1) log probability of sampled action
         """
         mu, log_std = self.forward(obs)
         std = log_std.exp()
@@ -83,7 +77,6 @@ class CriticDeterministicNet(nn.Module):
             in_dim = h
         self.net = nn.Sequential(*layers)
         self.q_out = nn.Linear(hidden_sizes[-1], 1)
-        self.apply(weights_init_)
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
         x = torch.cat(obs, dim=-1)

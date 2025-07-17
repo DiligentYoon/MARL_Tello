@@ -1,0 +1,70 @@
+# File/Path Settings
+paths:
+  folder_name: 'test3'
+  load_folder_name: 'joint_action_5_9_GT_MAAC'
+  # model_path, load_path etc. will be constructed from the above in the code
+
+# Environment Settings
+env:
+  seed: 42
+  physics_dt: 0.1
+  device: "cuda"
+
+  num_agent: 4
+  max_velocity: 1.0
+  max_yaw_rate: 35.0 # degrees
+  fov: 120.0 # degrees
+  cell_size: 0.01 # meter
+  sensor_range: 0.3 # meter
+  plot: False
+
+  map_representation:
+    free: 0
+    unknown: 1
+    occupied: 2
+    goal: 3
+
+  reward_info:
+    goal_threshold: 0.2
+    goal: 100
+    collision: -100
+
+
+# Agent Settings
+agent:
+  gradient_steps: 1            # gradient steps
+  batch_size": 64              # training batch size
+
+  discount_factor: 0.99        # discount factor (gamma)
+  polyak: 0.005               # soft update hyperparameter (tau)
+
+  learning_rate: 1e-3                  # learning rate
+  learning_rate_scheduler: null        # learning rate scheduler class (see torch.optim.lr_scheduler)
+  learning_rate_scheduler_kwargs: {}   # learning rate scheduler's kwargs (e.g. {"step_size": 1e-3})
+
+  grad_norm_clip: 0.5              # clipping coefficient for the norm of the gradients
+
+  entropy_loss_scale: 0.0      # entropy loss scaling factor
+  value_loss_scale: 1.0        # value loss scaling factor
+
+  learn_entropy: True          # learn entropy
+  entropy_learning_rate: 1e-3  # entropy learning rate
+  initial_entropy_value: 0.2   # initial entropy value
+  target_entropy: null         # target entropy
+
+  experiment:
+    directory: "MARL"
+    experiment_name: ""
+    write_interval: auto
+    checkpoint_interval: auto
+
+model:
+  actor:
+    hidden: [256, 256]
+  
+  critic:
+    hidden: [256, 256]
+    
+# Training Settings
+train:
+  timesteps: 4800

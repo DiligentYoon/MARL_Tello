@@ -29,38 +29,45 @@ env:
     goal: 100
     collision: -100
 
+
 # Agent Settings
 agent:
-  gamma: 1.0
-  tau: 0.005 # for target network soft update
-  num_meta_agent: 18
+  rollouts: 12
+  learning_epochs: 8
+  mini_batches: 2
+
+  discount_factor: 0.99
+  lambda: 0.95
+
+  learning_rate: 1e-3
+  learning_rate_scheduler: null
+  learning_rate_scheduler_kwargs: {}
+
+  grad_norm_clip: 1.0
+  ratio_clip: 0.1
+  value_clip: 0.1
+  
+  entropy_loss_scale: 0.0
+  value_loss_scale: 1.0
+
   buffer:
     replay_size: 10000
     minimum_size: 2000
     batch_size: 256
     num_episode_buffer: 40
+  experiment:
+    directory: "MARL"
+    experiment_name: ""
+    write_interval: auto
+    checkpoint_interval: auto
 
-# Model (Neural Network) Settings
 model:
   actor:
-    lr: 0.00001
     hidden: [256, 256]
-    log_std_min: -20
-    log_std_max: 2
   
   critic:
-    lr: 0.00001
     hidden: [256, 256]
     
-
 # Training Settings
 train:
-  load_model: false
-  save_model_gap: 1000 # episodes
-  save_img_gap: 1000
-  summary_window: 32
-  algo: 3 # 0: SAC, 1:MAAC, 2: Ground Truth, 3: MAAC and Ground Truth
-  use_gpu: false
-  use_gpu_global: true
-  num_gpu: 1
-  use_wandb: false
+  timesteps: 4800
