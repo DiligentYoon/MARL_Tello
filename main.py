@@ -2,9 +2,9 @@ import yaml
 import torch
 import numpy as np
 from pathlib import Path
-from utils.model import ActorGaussianNet, CriticDeterministicNet
-from utils.apf_env import APFEnv
-from utils.env_apf_cfg import APFEnvCfg
+from utils.model.model import ActorGaussianNet, CriticDeterministicNet
+from utils.env.apf.apf_env import APFEnv
+from utils.env.apf.apf_env_cfg import APFEnvCfg
 
 
 
@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
     obs, info = env.reset()
 
-    num_agents = obs.shape[0]  # 또는 reset 후 받은 obs의 shape[0]으로 에이전트 수 확인
+    num_agents = env.num_agent
     num_actions = env.cfg.num_act
 
     actions, _ = policy.sample(torch.tensor(obs, device=torch.device('cuda'), dtype=torch.float32))

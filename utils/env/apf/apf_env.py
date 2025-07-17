@@ -1,11 +1,11 @@
 import numpy as np
 
+from .apf_env_cfg import APFEnvCfg
+
 from typing import Tuple
 from utils.sensor import *
 from utils.utils import *
-from .env import Env, MapInfo
-
-from .env_apf_cfg import APFEnvCfg
+from utils.base.env.env import Env, MapInfo
 
 
 

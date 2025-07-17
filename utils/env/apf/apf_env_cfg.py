@@ -1,5 +1,5 @@
 
-from .env_cfg import EnvCfg
+from utils.base.env.env_cfg import EnvCfg
 
 
 class APFEnvCfg(EnvCfg):

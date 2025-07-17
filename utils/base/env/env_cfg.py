@@ -1,6 +1,5 @@
 
 
-
 class EnvCfg():
     seed: int
     physics_dt: float
