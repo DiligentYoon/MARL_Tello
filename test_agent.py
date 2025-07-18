@@ -25,6 +25,7 @@ def test_masac_agent():
     model_cfg = cfg.get("model", {})
 
     num_agents = env_cfg.get("num_agent", 4)
+    batch_size = agent_cfg.get("batch_size", 64)
     # Assuming individual agent observation and action dimensions
     # For centralized critic, these will be combined later.
     obs_dim = 10  # Placeholder, replace with your actual obs_dim
@@ -39,11 +40,11 @@ def test_masac_agent():
         policy = ActorGaussianNet(obs_dim, action_dim, device, model_cfg['actor'])
         
         # Centralized critic takes concatenated obs and actions from all agents
-        critic_obs_dim = obs_dim * num_agents
-        critic_action_dim = action_dim * num_agents
+        critic_obs_dim = state_dim + action_dim
+        critic_action_dim = 1
         
-        critic1 = CriticDeterministicNet(critic_obs_dim + critic_action_dim, 1, device, model_cfg['critic'])
-        critic2 = CriticDeterministicNet(critic_obs_dim + critic_action_dim, 1, device, model_cfg['critic'])
+        critic1 = CriticDeterministicNet(critic_obs_dim, critic_action_dim, device, model_cfg['critic'])
+        critic2 = CriticDeterministicNet(critic_obs_dim, critic_action_dim, device, model_cfg['critic'])
         
         models = {
             "policy": policy,
@@ -85,20 +86,19 @@ def test_masac_agent():
     # 5. Test update() method
     try:
         # Create a mock batch of data (1 transition for simplicity)
-        dummy_state = torch.randn(num_agents, state_dim)
-        dummy_next_state = torch.randn(num_agents, state_dim)
-        dummy_next_obs = torch.randn(num_agents, obs_dim)
-        dummy_rewards = torch.randn(num_agents, 1) # Assuming team-based reward for simplicity
-        dummy_terminated = torch.zeros(num_agents, 1, dtype=torch.bool)
-        dummy_truncated = torch.zeros(num_agents, 1, dtype=torch.bool)
-        dummy_joint_actions = torch.zeros(num_agents, num_agents * action_dim)
-
+        dummy_state = torch.randn(batch_size, state_dim)
+        dummy_next_state = torch.randn(batch_size, state_dim)
+        dummy_action = torch.randn(batch_size, action_dim)
+        dummy_obs = torch.randn(batch_size, obs_dim)
+        dummy_next_obs = torch.randn(batch_size, obs_dim)
+        dummy_rewards = torch.randn(batch_size, 1) # Assuming team-based reward for simplicity
+        dummy_terminated = torch.zeros(batch_size, 1, dtype=torch.bool)
+        dummy_truncated = torch.zeros(batch_size, 1, dtype=torch.bool)
 
         mock_batch = {
-            'obs': dummy_obs.cpu(),
+            'obs': dummy_obs,
             'state': dummy_state,
-            'actions': stochastic_actions.cpu(),
-            'joint_actions': dummy_joint_actions,
+            'actions': dummy_action,
             'rewards': dummy_rewards,
             'next_obs': dummy_next_obs,
             'next_state': dummy_next_state,
@@ -106,7 +106,6 @@ def test_masac_agent():
             'truncated': dummy_truncated
         }
     
-
         loss_dict = agent.update(mock_batch)
         print(f"[SUCCESS] update() method executed. Losses: {loss_dict}")
         assert "loss/critic" in loss_dict, "Critic loss not found in return dict"

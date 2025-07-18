@@ -97,7 +97,7 @@ class MASACAgent(MultiAgent):
             else:
                 # For training, sample from the distribution
                 # The `sample` method from ActorGaussianNet already returns tanh-squashed actions
-                actions, logp = self.policy.sample(states)
+                actions, logp = self.policy.compute(states)
         self.policy.train()
 
         return actions, logp
@@ -110,42 +110,37 @@ class MASACAgent(MultiAgent):
         """
         # Unpack batch from dictionary and move to device
         obs = batch['obs'].to(self.device)
+        state = batch['state'].to(self.device)
         actions = batch['actions'].to(self.device)
         rewards = batch['rewards'].to(self.device)
         next_obs = batch['next_obs'].to(self.device)
+        next_state = batch['next_state'].to(self.device)
         dones = (batch['terminated'] | batch['truncated']).to(self.device)
 
-        # Centralized information for the critic
-        state = batch['state'].to(self.device)
-        next_state = batch['next_state'].to(self.device)
-        joint_actions = batch['joint_actions'].to(self.device) # Assuming buffer provides this
+        batch_size = next_obs.size(0)
+        num_agents = self.num_agents
 
         # --- Critic Update ---
         with torch.no_grad():
             # Get next actions and log probs from the decentralized policy
-            next_actions_dist, next_log_pi = self.policy.sample(next_obs)
+            # (B, obs_dim) -> (B, act_dim)
+            next_actions, next_log_pi = self.policy.compute(next_obs)
 
-            # To compute the target Q value, we need the joint action corresponding to the next_state
-            # This requires knowing which agent's next_action belongs to which next_state.
-            # This part can be complex and depends on the buffer's structure.
-            # For now, we make a simplifying assumption that the critic can handle decentralized next actions.
-            # A more robust way is to have the buffer provide joint_next_actions.
-            
-            # We will assume the critic's input is the joint state and all individual next actions concatenated.
-            # This is a common approach in MADDPG-style algorithms.
-            # The CriticDeterministicNet needs to be designed to handle this shape.
-            critic_input_next = torch.cat([next_state, next_actions_dist], dim=1)
+            # Flatten the joint actions to concatenate with the state for the critic
+            # (B, (state_dim + act_dim))
+            critic_input_next = torch.cat([next_state, next_actions], dim=1)
 
-            q1_next_target = self.target_critic_1(critic_input_next)
-            q2_next_target = self.target_critic_2(critic_input_next)
+            # (B, (state_dim + act_dim)) -> (B, 1)
+            q1_next_target = self.target_critic_1.compute(critic_input_next)
+            q2_next_target = self.target_critic_2.compute(critic_input_next)
             min_q_next_target = torch.min(q1_next_target, q2_next_target) - self.alpha * next_log_pi
             next_q_value = rewards + (~dones) * self.discount_factor * min_q_next_target
 
         # Get current Q estimates
-        # The critic input is the joint observation and the actions taken by all agents at that time.
-        critic_input_current = torch.cat([state, joint_actions], dim=1)
-        q1_current = self.critic_1(critic_input_current)
-        q2_current = self.critic_2(critic_input_current)
+        # (B, (state_dim + act_dim)) -> (B, 1)
+        critic_input_current = torch.cat([state, actions], dim=1)
+        q1_current = self.critic_1.compute(critic_input_current)
+        q2_current = self.critic_2.compute(critic_input_current)
         
         critic_loss = (F.mse_loss(q1_current, next_q_value) + F.mse_loss(q2_current, next_q_value)) / 2
 
@@ -160,16 +155,13 @@ class MASACAgent(MultiAgent):
         for p in self.critic_2.parameters(): p.requires_grad = False
 
         # The policy is updated using decentralized observations
-        pi, log_pi = self.policy.sample(obs)
-        
-        # Let's implement a runnable version based on the existing model structure.
-        pi, log_pi = self.policy.sample(obs)
+        # (B, obs_dim) -> (B, act_dim)
+        pi, log_pi = self.policy.compute(obs)
         
         # Policy Loss Calculation
-        q1_pi = self.critic_1(torch.cat([state, joint_actions], dim=1))
-        q2_pi = self.critic_2(torch.cat([state, joint_actions], dim=1))
+        q1_pi = self.critic_1(torch.cat([state, pi], dim=1))
+        q2_pi = self.critic_2(torch.cat([state, pi], dim=1))
         policy_loss = (self.alpha * log_pi - torch.min(q1_pi, q2_pi)).mean()
-
 
         self.policy_optimizer.zero_grad()
         policy_loss.backward()

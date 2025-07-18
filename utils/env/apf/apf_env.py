@@ -77,7 +77,7 @@ class APFEnv(Env):
     
     def _get_observations(self) -> np.ndarray:
         """
-            Observation Config for Actor Network [n, 11]
+            Observation Config for Actor Network [n, obs_dim]
                 1. APF_vector : [n, 2]
                 2. Position (x, y, yaw) : [n , 3]
                 3. Velocity (vx, vy) : [n, 2]
@@ -107,13 +107,12 @@ class APFEnv(Env):
 
     def _get_states(self) -> np.ndarray:
         """
-            State Config for Critic Network [n, 13]
+            State Config for Critic Network [n, state_dim]
                 1. APF_vector : [n, 2]
                 2. Position (x, y, yaw) : [n , 3]
                 3. Velocity (vx, vy) : [n, 2]
                 4. closest 2D Location : [n, 2]
                 5. closest 2D Velocity : [n, 2]
-                6. Action : [n, act_dim]
         """
         # APF_vector [n, 2]
         apf_vectors = self.APF_vec
@@ -130,10 +129,7 @@ class APFEnv(Env):
         # Closest neighbor state [n, 4] (pos_x, pos_y, vel_x, vel_y)
         neighbor_states = self.neighbor_states
 
-        # 자신의 action [n, 2]
-        actions = self.actions
-
-        state = np.hstack((apf_vectors, positions, velocities, neighbor_states, actions))
+        state = np.hstack((apf_vectors, positions, velocities, neighbor_states))
 
         return state
 

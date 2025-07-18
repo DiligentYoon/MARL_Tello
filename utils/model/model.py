@@ -37,7 +37,7 @@ class ActorGaussianNet(nn.Module):
         return mu, log_std
     
 
-    def sample(self, obs: torch.Tensor) -> torch.Tensor:
+    def compute(self, obs: torch.Tensor) -> torch.Tensor:
         """
             Samples an action from the policy, using reparameterization trick.
             Returns:
@@ -79,8 +79,7 @@ class CriticDeterministicNet(nn.Module):
         self.q_out = nn.Linear(hidden_sizes[-1], 1)
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
-        x = torch.cat(obs, dim=-1)
-        x = self.net(x)
+        x = self.net(obs)
         return self.q_out(x)
     
 

@@ -1,8 +1,7 @@
-# File/Path Settings
-paths:
-  folder_name: 'test3'
-  load_folder_name: 'joint_action_5_9_GT_MAAC'
-  # model_path, load_path etc. will be constructed from the above in the code
+
+ray:
+  num_cpus: 4
+  num_workers: 3
 
 # Environment Settings
 env:
@@ -50,10 +49,9 @@ agent:
   learn_entropy: True          # learn entropy
   entropy_learning_rate: 1e-3  # entropy learning rate
   initial_entropy_value: 0.2   # initial entropy value
-  target_entropy: null         # target entropy
 
   buffer:
-    replay_size: 10000
+    replay_size: 100000
 
   experiment:
     directory: "MARL"

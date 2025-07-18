@@ -6,77 +6,98 @@ import datetime
 from collections import deque
 from torch.utils.tensorboard import SummaryWriter
 
-# --- Placeholder Imports: Replace with your actual implementations ---
-# Assuming your new worker is in the path we discussed
-from utils.runner.rollout_worker import RolloutWorker 
-# You will need a concrete implementation of BaseMultiAgent, e.g., MAPPO
-from utils.base.agent.multi_agent import MultiAgent 
-# A placeholder for a concrete policy network
-from utils.model import MLPPolicy 
-
+from utils.runner.rollout_worker import RolloutWorker
+from utils.agent.masac import MASACAgent
+from utils.model.model import ActorGaussianNet, CriticDeterministicNet
+from utils.env.apf.apf_env import APFEnv # Assuming this is the environment to get dims
 
 class MainDriver:
     """
-    The main orchestrator for the training process, based on the Driver-Worker architecture.
-    It manages the entire lifecycle: worker creation, data collection, centralized training,
+    The main orchestrator for the training process.
+    It manages worker creation, data collection, centralized training,
     logging, and checkpointing.
     """
     def __init__(self, cfg: dict):
         self.cfg = cfg
-        self.start_time = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f")
+        self.start_time = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S")
         
-        # Initialize Ray
-        ray.init()
-        print(f"Ray initialized.")
+        ray.init(num_cpus=self.cfg['ray']['num_cpus'])
+        print(f"Ray initialized with {self.cfg['ray']['num_cpus']} CPUs.")
 
-        # Setup device
-        self.device = torch.device(self.cfg['device'])
-
-        # --- Centralized Components ---
-        # 1. Experiment Directory and TensorBoard Writer
-        self.experiment_dir = os.path.join("runs", f"{self.start_time}_{self.cfg['experiment_name']}")
+        self.device = torch.device(self.cfg['env']['device'])
+        
+        # --- Experiment Directory and Logging ---
+        self.experiment_dir = os.path.join("results", f"{self.start_time}_{self.cfg['agent']['experiment']['directory']}")
         self.writer = SummaryWriter(log_dir=self.experiment_dir)
         print(f"TensorBoard logs will be saved to: {self.experiment_dir}")
 
-        # 2. Master Agent (holds the master networks and optimizers)
-        # !!! REPLACE with your concrete Multi-Agent implementation (e.g., MAPPOAgent)
-        # self.master_agent = YourMultiAgentClass(models=..., device=self.device, cfg=self.cfg['agent'])
-        # For now, using a placeholder. You need to define the models.
-        models = {"policy": MLPPolicy(self.cfg['env']['obs_dim'], self.cfg['env']['action_dim'])}
-        # self.master_agent = BaseMultiAgent(models=models, device=self.device, cfg=self.cfg['agent'])
-        print("Master agent created.")
+        # --- Environment Info (for model dimensions) ---
+        # Create a temporary env to get observation and action dimensions
+        temp_env = APFEnv(cfg=self.cfg['env'])
+        obs_dim = temp_env.cfg.num_obs
+        state_dim = temp_env.cfg.num_state
+        action_dim = temp_env.cfg.num_act
+        num_agents = self.cfg['env']['num_agent']
+        del temp_env
 
-        # 3. Replay Buffer
-        # !!! REPLACE with a more sophisticated buffer if needed
-        self.replay_buffer = deque(maxlen=self.cfg['buffer']['replay_size'])
-        print(f"Replay buffer created with max size {self.cfg['buffer']['replay_size']}.")
+        # --- Centralized Components ---
+        # 1. Master Agent (holds the master networks and optimizers)
+        models = self._create_models(obs_dim, state_dim, action_dim, num_agents)
+        self.master_agent = MASACAgent(
+            num_agents=num_agents,
+            models=models,
+            device=self.device,
+            cfg=self.cfg['agent']
+        )
+        print("Master MASACAgent created.")
+
+        # 2. Replay Buffer
+        buffer_size = self.cfg['agent']['buffer']['replay_size']
+        self.replay_buffer = deque(maxlen=buffer_size)
+        print(f"Replay buffer created with max size {buffer_size}.")
 
         # --- Worker Creation ---
         self.workers = [
-            RolloutWorker.remote(worker_id=i, env_cfg=self.cfg['env'], agent_cfg=self.cfg['agent'])
+            RolloutWorker.remote(
+                worker_id=i, 
+                env_cfg=self.cfg['env'], 
+                agent_cfg=self.cfg['agent'],
+                model_cfg=self.cfg['model'] # Pass model config to workers
+            )
             for i in range(self.cfg['ray']['num_workers'])
         ]
         print(f"{self.cfg['ray']['num_workers']} RolloutWorkers created.")
+
+
+    def _create_models(self, obs_dim, state_dim, action_dim, num_agents) -> dict:
+        """Creates the policy and critic models."""
+        model_cfg = self.cfg['model']
+        
+        policy = ActorGaussianNet(obs_dim, action_dim, self.device, model_cfg['actor'])
+        
+        # Centralized critic input dimension: state + agent actions
+        critic_input_dim = state_dim + action_dim
+        
+        critic1 = CriticDeterministicNet(critic_input_dim, 1, self.device, model_cfg['critic'])
+        critic2 = CriticDeterministicNet(critic_input_dim, 1, self.device, model_cfg['critic'])
+        
+        return {"policy": policy, "critic_1": critic1, "critic_2": critic2}
 
     def train(self):
         """Main training loop."""
         print("=== Training Start ===")
         
-        # Get initial weights from the master agent's policy
-        # This assumes the agent has a 'policy' model in its `models` dictionary
-        # current_weights = self.master_agent.models['policy'].state_dict()
-        # Placeholder for weights
-        current_weights = self.master_agent.models['policy'].state_dict()
-
-        # Start the first batch of jobs
-        jobs = [worker.rollout.remote(episode_number=i) for i, worker in enumerate(self.workers)]
-        # First, set the weights for all workers
+        current_weights = self.master_agent.get_checkpoint_data()['policy']
+        
+        # Broadcast initial weights to all workers
         for worker in self.workers:
             worker.set_weights.remote(current_weights)
 
+        # Start the first batch of rollouts
+        jobs = [worker.rollout.remote() for worker in self.workers]
+
         global_step = 0
         while global_step < self.cfg['train']['timesteps']:
-            # Wait for any worker to finish its job
             done_ids, jobs = ray.wait(jobs)
             result = ray.get(done_ids[0])
 
@@ -85,36 +106,34 @@ class MainDriver:
             metrics = result['metrics']
             trajectory = result['trajectory']
 
-            # 1. Add data to replay buffer
             self.replay_buffer.extend(trajectory)
-            global_step += metrics['episode_length']
+            episode_length = metrics[f'worker_{worker_id}/episode_length']
+            global_step += episode_length
 
-            # 2. Log metrics to TensorBoard
             self._log_metrics(metrics, global_step)
 
             # --- Centralized Training Step ---
-            if len(self.replay_buffer) >= self.cfg['buffer']['batch_size']:
-                # Sample a batch of data
-                # !!! This is a very basic sampling, replace if needed
-                indices = torch.randperm(len(self.replay_buffer))[:self.cfg['buffer']['batch_size']]
-                batch = [self.replay_buffer[i] for i in indices]
+            if len(self.replay_buffer) >= self.cfg['agent']['batch_size']:
+                for _ in range(self.cfg['agent']['gradient_steps']):
+                    # This part needs a proper ReplayBuffer implementation
+                    # For now, we'll skip the actual batch sampling and update
+                    pass
                 
-                # Perform a training update
                 # loss_dict = self.master_agent.update(batch)
                 # self._log_metrics(loss_dict, global_step)
-                pass # Placeholder for the update call
-
+                
                 # Update weights to be sent to workers
-                # current_weights = self.master_agent.models['policy'].state_dict()
+                current_weights = self.master_agent.get_checkpoint_data()['policy']
 
             # --- Checkpointing ---
             self._save_checkpoint(global_step)
 
             # --- Launch New Job ---
             # Relaunch the job on the worker that just finished
-            jobs.append(self.workers[worker_id].rollout.remote(global_step))
-            # Send the latest weights to that worker
+            # and send it the latest weights
+            new_job = self.workers[worker_id].rollout.remote()
             self.workers[worker_id].set_weights.remote(current_weights)
+            jobs.append(new_job)
 
         print("\n=== Training Finished ===")
         ray.shutdown()
@@ -122,36 +141,24 @@ class MainDriver:
     def _log_metrics(self, metrics: dict, global_step: int):
         """Logs metrics to TensorBoard."""
         for key, value in metrics.items():
-            self.writer.add_scalar(f"Metrics/{key}", value, global_step)
+            self.writer.add_scalar(key, value, global_step)
         self.writer.flush()
 
     def _save_checkpoint(self, global_step: int):
         """Saves a checkpoint of the master agent's models."""
-        checkpoint_interval = self.cfg['experiment'].get('checkpoint_interval', 50000)
-        if global_step % checkpoint_interval < self.cfg['env']['max_steps']: # Avoid saving too often at the start
-            # modules_to_save = {name: model.state_dict() for name, model in self.master_agent.checkpoint_modules.items()}
-            # filepath = os.path.join(self.experiment_dir, "checkpoints", f"step_{global_step}.pt")
-            # os.makedirs(os.path.dirname(filepath), exist_ok=True)
-            # torch.save(modules_to_save, filepath)
-            # print(f"--- Checkpoint saved at step {global_step} ---")
-            pass # Placeholder for checkpointing
+        checkpoint_interval = self.cfg['agent']['experiment'].get('checkpoint_interval', 50000)
+        if global_step > 0 and global_step % checkpoint_interval < self.cfg['agent']['gradient_steps']:
+            filepath = os.path.join(self.experiment_dir, "checkpoints", f"step_{global_step}.pt")
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            torch.save(self.master_agent.get_checkpoint_data(), filepath)
+            print(f"--- Checkpoint saved at step {global_step} ---")
+
+
 
 if __name__ == '__main__':
-    # Load configuration from a YAML file
-    # with open("ppo_cfg.yml", 'r') as f:
-    #     config = yaml.safe_load(f)
+    with open("sac_cfg.yaml", 'r') as f:
+        config = yaml.safe_load(f)
     
-    # Placeholder config for demonstration
-    config = {
-        'ray': {'num_cpus': 4, 'num_workers': 3},
-        'device': 'cuda' if torch.cuda.is_available() else 'cpu',
-        'experiment_name': 'MARL_Test',
-        'env': {'obs_dim': 10, 'action_dim': 2, 'max_steps': 500},
-        'agent': {},
-        'buffer': {'replay_size': 100000, 'batch_size': 256},
-        'train': {'timesteps': 1000000},
-        'experiment': {'checkpoint_interval': 50000}
-    }
-
     driver = MainDriver(cfg=config)
     driver.train()
+

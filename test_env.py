@@ -37,7 +37,7 @@ if __name__ == '__main__':
     policy_cfg = config['model']['actor']
     value_cfg = config['model']['critic']
     policy = ActorGaussianNet(env.cfg.num_obs, env.cfg.num_act, device=torch.device('cuda'), cfg=policy_cfg)
-    value = CriticDeterministicNet(env.cfg.num_state, 1, device=torch.device('cuda'), cfg=value_cfg)
+    value = CriticDeterministicNet(env.cfg.num_state + env.cfg.num_act, 1, device=torch.device('cuda'), cfg=value_cfg)
     print(f"[INFO] Success to generate model")
 
     policy.to(device)
