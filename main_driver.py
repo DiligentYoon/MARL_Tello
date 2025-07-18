@@ -84,9 +84,9 @@ class MainDriver:
         # --- Data Logging ---
         self.tracking_data = collections.defaultdict(list)
 
-        self._track_episode_rewards = collections.deque(maxlen=30)
-        self._track_episode_lengths = collections.deque(maxlen=30)
-        self._track_instantaneous_rewards = collections.deque(maxlen=30)
+        self._track_episode_rewards = collections.deque(maxlen=10)
+        self._track_episode_lengths = collections.deque(maxlen=10)
+        self._track_instantaneous_rewards = collections.deque(maxlen=10)
 
 
 
