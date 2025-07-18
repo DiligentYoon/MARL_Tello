@@ -20,8 +20,8 @@ class APFEnv(Env):
 
         self.patch_size = self.cfg.patch_size
 
-
-        self.local_patch = np.zeros((self.patch_size, self.patch_size), dtype=np.float32)
+        # 핵심 Planning State
+        self.local_patches = np.zeros((self.num_agent, self.patch_size, self.patch_size), dtype=np.float32)
         self.APF_vec = np.zeros((self.num_agent, 2), dtype=np.float32)
         self.neighbor_states = np.zeros((self.num_agent, 4), dtype=np.float32)
 
@@ -45,11 +45,12 @@ class APFEnv(Env):
         """
             업데이트된 state값들을 바탕으로, obs값에 들어가는 planning state 계산
         """
-        # APF 벡터 계산
+        # APF 벡터 & Belief맵 기반의 Local Patch 계산
         for i in range(self.num_agent):
             drone_cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
-            apf_vec, _ = self.compute_apf_patch(drone_cell, self.robot_belief, self.goal_coords, self.belief_info)
+            apf_vec, local_patch = self.compute_apf_patch(drone_cell, self.robot_belief, self.goal_coords, self.belief_info)
             self.APF_vec[i] = apf_vec
+            self.local_patches[i] = local_patch
 
         # 가장 가까운 이웃 드론 상태 계산
         for i in range(self.num_agent):
@@ -71,7 +72,7 @@ class APFEnv(Env):
                     vy = self.robot_velocities[j] * np.sin(rad)
                     closest_neighbor_state[2] = vx
                     closest_neighbor_state[3] = vy
-            
+
             self.neighbor_states[i] = closest_neighbor_state
 
 
@@ -208,11 +209,11 @@ class APFEnv(Env):
         for i in range(self.num_agent):
             
             if self.is_reached_goal[i] and self.is_first_reached[i]:
-                reward += self.cfg.reward_info["goal"]
+                reward[i] += self.cfg.reward_info["goal"]
                 self.is_first_reached[i] = False
             
             if self.is_collided_drone[i] or self.is_collided_obstacle[i]:
-                reward += self.cfg.reward_info["collision"]
+                reward[i] += self.cfg.reward_info["collision"]
 
         return reward
 

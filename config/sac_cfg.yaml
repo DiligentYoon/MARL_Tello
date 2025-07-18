@@ -22,6 +22,7 @@ env:
     unknown: 1
     occupied: 2
     goal: 3
+    start: 4
 
   reward_info:
     goal_threshold: 0.2

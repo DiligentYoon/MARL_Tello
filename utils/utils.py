@@ -109,7 +109,7 @@ def collision_check(x0, y0, x1, y1, ground_truth, robot_belief, map_mask):
         # 3.2) 셀 클래스 읽기
         gt = ground_truth[y, x]
 
-        if gt == 1:
+        if gt == map_mask["occupied"]:
             # 충돌 지점만 OCCUPIED로 업데이트하고 종료
             robot_belief[y, x] = map_mask["occupied"]
             break

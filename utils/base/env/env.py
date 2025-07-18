@@ -89,7 +89,7 @@ class Env():
         self.belief_info.map_origin_y = self.belief_origin_y
 
         # Initialize headings
-        self.angles = np.random.uniform(0, 360, size=self.num_agent)
+        self.angles = 0 * np.random.uniform(0, 360, size=self.num_agent)
         # Perform initial sensing update for each agent
         for i in range(self.num_agent):
             cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
@@ -115,7 +115,7 @@ class Env():
 
 
     def _set_goal_state(self) -> np.ndarray:
-        goal_cells = np.column_stack(np.nonzero(self.ground_truth == 3))
+        goal_cells = np.column_stack(np.nonzero(self.ground_truth == self.map_mask["goal"]))
         goal_world = []
 
         for row, col in goal_cells:
@@ -127,7 +127,8 @@ class Env():
 
     def _set_init_state(self) -> Tuple[np.ndarray, np.ndarray]:
         H = self.ground_truth.shape[0]
-        start_cells = np.column_stack((np.nonzero(self.ground_truth == 2)[0], np.nonzero(self.ground_truth == 2)[1]))
+        start_cells = np.column_stack((np.nonzero(self.ground_truth == self.map_mask["start"])[0], 
+                                       np.nonzero(self.ground_truth == self.map_mask["start"])[1]))
         idx = np.random.choice(len(start_cells), self.num_agent, replace=False)
         chosen = start_cells[idx]
         rows, cols = chosen[:, 0], chosen[:, 1]
@@ -147,12 +148,18 @@ class Env():
         img = Image.open(map_path).convert('L')
         arr = np.array(img, dtype=np.uint8)
 
-        # 2) 그레이스케일 → 클래스 매핑
+        # 2) 그레이스케일 → 클래스 매핑 : belief map representation과 겹치는 부분은 index 통일
         #   230 → free (0)
-        #   128 → obanglesstacle (1)
-        #   200 → start    (2)
+        #    1  → unknown (1)
+        #   128 → obstacle (2)
         #    80 → goal     (3)
-        gray2class = {230: 0, 128: 1, 200: 2, 80: 3}
+        #   200 → start    (4)
+        gray2class = {
+            230: self.map_mask["free"],
+            200: self.map_mask["start"],
+            128: self.map_mask["occupied"],
+            80 : self.map_mask["goal"]
+        }
 
         # 기본값(예: unknown)은 1로 처리
         ground_truth = np.full_like(arr, fill_value=1, dtype=np.uint8)
@@ -160,7 +167,7 @@ class Env():
             ground_truth[arr == gray] = cls
 
         # 3) 시작 셀 찾기
-        ys, xs = np.nonzero(ground_truth == 2)
+        ys, xs = np.nonzero(ground_truth == self.map_mask["start"])
         if len(ys) == 0:
             raise ValueError(f"No start zone (value=2) found in map {map_path}")
         robot_cell = np.array([ys[0], xs[0]])
