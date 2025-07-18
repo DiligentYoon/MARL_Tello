@@ -19,6 +19,7 @@ class MainDriver:
     """
     def __init__(self, cfg: dict):
         self.cfg = cfg
+        self.timesteps = self.cfg["train"]["timesteps"]
         self.start_time = datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S")
         
         ray.init(num_cpus=self.cfg['ray']['num_cpus'])
@@ -29,6 +30,10 @@ class MainDriver:
         # --- Experiment Directory and Logging ---
         self.experiment_dir = os.path.join("results", f"{self.start_time}_{self.cfg['agent']['experiment']['directory']}")
         self.writer = SummaryWriter(log_dir=self.experiment_dir)
+        if self.cfg['agent']['experiment']['write_interval'] == 'auto':
+            self.write_interval = int(self.timesteps / 10)
+        if self.cfg['agent']['experiment']['checkpoint_interval'] == 'auto':
+            self.checkpoint_interval = int(self.timesteps / 10)
         print(f"TensorBoard logs will be saved to: {self.experiment_dir}")
 
         # --- Environment Info (for model dimensions) ---
@@ -56,7 +61,7 @@ class MainDriver:
         self.replay_buffer = deque(maxlen=buffer_size)
         print(f"Replay buffer created with max size {buffer_size}.")
 
-        # --- Worker Creation ---
+        # --- Worker Creation for Parallel Working ---
         self.workers = [
             RolloutWorker.remote(
                 worker_id=i, 
@@ -69,11 +74,17 @@ class MainDriver:
         print(f"{self.cfg['ray']['num_workers']} RolloutWorkers created.")
 
 
+
     def _create_models(self, obs_dim, state_dim, action_dim, num_agents) -> dict:
         """Creates the policy and critic models."""
         model_cfg = self.cfg['model']
-        
-        policy = ActorGaussianNet(obs_dim, action_dim, self.device, model_cfg['actor'])
+
+        model_cls = model_cfg["class"]
+
+        if model_cls in ["PPO", "SAC"]:
+            policy = ActorGaussianNet(obs_dim, action_dim, self.device, model_cfg['actor'])
+        else:
+            ValueError("[INFO] TODO : we should construct the deterministic policy for MADDPG ...")
         
         # Centralized critic input dimension: state + agent actions
         critic_input_dim = state_dim + action_dim
@@ -82,6 +93,7 @@ class MainDriver:
         critic2 = CriticDeterministicNet(critic_input_dim, 1, self.device, model_cfg['critic'])
         
         return {"policy": policy, "critic_1": critic1, "critic_2": critic2}
+
 
     def train(self):
         """Main training loop."""

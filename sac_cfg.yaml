@@ -31,6 +31,7 @@ env:
 
 # Agent Settings
 agent:
+  class: SAC
   gradient_steps: 1            # gradient steps
   batch_size": 64              # training batch size
 
