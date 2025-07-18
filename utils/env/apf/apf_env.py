@@ -10,7 +10,8 @@ from utils.base.env.env import Env, MapInfo
 
 class APFEnv(Env):
     cfg: APFEnvCfg
-    def __init__(self, episode_index: int | np.ndarray, cfg: APFEnvCfg):
+    def __init__(self, episode_index: int | np.ndarray, cfg: dict):
+        cfg = APFEnvCfg(cfg)
         super().__init__(episode_index, cfg)
 
         self.dt = self.cfg.physics_dt
@@ -34,10 +35,10 @@ class APFEnv(Env):
         # Optional Additional State
         self.infos["explored_rate"] = np.zeros((1, ), dtype=np.float32)
 
-    def reset(self):
+    def reset(self, episode_index: int = None):
         # 나머지 플래그는 사용하기 전 계산 되므로 초기화 X
         self.is_first_reached = np.ones((self.num_agent, 1), dtype=np.bool_)
-        return super().reset()
+        return super().reset(episode_index)
 
 
     def _compute_intermediate_values(self):
@@ -100,7 +101,7 @@ class APFEnv(Env):
         neighbor_states = self.neighbor_states
 
         # Concatenate
-        obs = np.hstack((apf_vectors, positions, velocities, neighbor_states))
+        obs = np.hstack((apf_vectors, positions, velocities, neighbor_states)).astype(np.float32)
         
         return obs
     
@@ -129,7 +130,7 @@ class APFEnv(Env):
         # Closest neighbor state [n, 4] (pos_x, pos_y, vel_x, vel_y)
         neighbor_states = self.neighbor_states
 
-        state = np.hstack((apf_vectors, positions, velocities, neighbor_states))
+        state = np.hstack((apf_vectors, positions, velocities, neighbor_states)).astype(np.float32)
 
         return state
 
@@ -202,7 +203,7 @@ class APFEnv(Env):
     
 
     def _get_rewards(self):
-        reward =  np.array(self.prev_dists) - np.array(self.cur_dists)
+        reward =  (np.array(self.prev_dists) - np.array(self.cur_dists)).astype(np.float32)
 
         for i in range(self.num_agent):
             

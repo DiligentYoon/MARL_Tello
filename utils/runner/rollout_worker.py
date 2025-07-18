@@ -1,4 +1,5 @@
 import ray
+import numpy as np
 import torch
 from typing import Dict, Any
 
@@ -24,13 +25,13 @@ class RolloutWorker:
         self.device = torch.device("cpu") # Workers typically run on CPU
 
         # --- Environment ---
-        self.env = APFEnv(cfg=env_cfg)
+        self.env = APFEnv(episode_index=0, cfg=env_cfg)
         
         # --- Lightweight Agent for Acting ---
         # The worker only needs the policy network to sample actions.
         # The actual learning happens in the MainDriver.
-        obs_dim = self.env.observation_space.shape[1]
-        action_dim = self.env.action_space.shape[1]
+        obs_dim = self.env.cfg.num_obs
+        action_dim = self.env.cfg.num_act
         self.policy_net = ActorGaussianNet(obs_dim, action_dim, self.device, model_cfg['actor'])
         self.policy_net.to(self.device)
         
@@ -42,17 +43,18 @@ class RolloutWorker:
         """
         self.policy_net.load_state_dict(weights)
 
-    def rollout(self) -> Dict[str, Any]:
+    def rollout(self, episode_index: int) -> Dict[str, Any]:
         """
         Runs one full episode in the environment to collect a trajectory.
         """
         trajectory = []
-        obs, state, info = self.env.reset()
-        terminated, truncated = False, False
+        obs, state, info = self.env.reset(episode_index=episode_index)
+        terminated, truncated = np.zeros((self.env.num_agent, 1), dtype=bool), np.zeros((self.env.num_agent, 1), dtype=bool)
+        instantaneous_reward = 0
         episode_reward = 0
         episode_length = 0
 
-        while not terminated and not truncated:
+        while not (np.any(terminated) or np.any(truncated)):
             # Convert observation to a tensor for the policy network
             obs_tensor = torch.tensor(obs, dtype=torch.float32, device=self.device)
 
@@ -64,16 +66,18 @@ class RolloutWorker:
             next_obs, next_state, rewards, terminated, truncated, infos = self.env.step(actions.cpu().numpy())
             
             # Store the complete transition information
-            trajectory.append({
-                "obs": obs,
-                "state": state,
-                "actions": actions.cpu().numpy(),
-                "rewards": rewards,
-                "next_obs": next_obs,
-                "next_state": next_state,
-                "terminated": terminated,
-                "truncated": truncated
-            })
+            actions = actions.cpu().numpy()
+            for i in range(self.env.num_agent):
+                trajectory.append({
+                    "obs": obs[i],
+                    "state": state[i],
+                    "actions": actions[i],
+                    "rewards": rewards[i],
+                    "next_obs": next_obs[i],
+                    "next_state": next_state[i],
+                    "terminated": terminated[i],
+                    "truncated": truncated[i]
+                })
             
             obs = next_obs
             state = next_state
@@ -81,8 +85,9 @@ class RolloutWorker:
             episode_length += 1
 
         metrics = {
-            f"worker_{self.worker_id}/episode_reward": episode_reward,
-            f"worker_{self.worker_id}/episode_length": episode_length,
+            f"episode_reward_team": episode_reward,
+            f"episode_length": episode_length,
+            f"instantaneous_reward_team" : instantaneous_reward / episode_length
         }
         
         return {"trajectory": trajectory, "metrics": metrics, "worker_id": self.worker_id}

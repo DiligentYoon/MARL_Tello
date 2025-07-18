@@ -44,6 +44,7 @@ class MASACAgent(MultiAgent):
         self.grad_norm_clip = self.cfg.get("grad_norm_clip", 0.5)
         self.lr = self.cfg.get("learning_rate", 1e-3)
         self.entropy_learning_rate = self.cfg.get("entropy_learning_rate", 1e-3)
+        self.minimum_buffer_size = self.cfg.get("minimum_buffer_size", 1000)
 
         if type(self.lr) == str:
             self.lr = float(self.lr)
@@ -101,6 +102,18 @@ class MASACAgent(MultiAgent):
         self.policy.train()
 
         return actions, logp
+
+    def get_checkpoint_data(self) -> Dict[str, Any]:
+        """
+        Returns the state of the agent for checkpointing.
+        """
+        checkpoint_data = {}
+        for name, module in self.checkpoint_modules.items():
+            if isinstance(module, torch.nn.Module) or isinstance(module, torch.optim.Optimizer):
+                checkpoint_data[name] = module.state_dict()
+            else:
+                checkpoint_data[name] = module
+        return checkpoint_data
 
     def update(self, batch: Dict[str, torch.Tensor]) -> Dict[str, float]:
         """

@@ -16,7 +16,7 @@ class APFEnvCfg(EnvCfg):
         # Space Information
         self.num_obs = 11
         self.num_act = 2
-        self.num_state = 13
+        self.num_state = 11
 
         # Episode Information
         self.decimation = 5

@@ -1,5 +1,9 @@
 *.gif
+
 **/gifs/
 **/__pycache__/
 **/*.pyc
+**/results/
+
 __pycache__/
+

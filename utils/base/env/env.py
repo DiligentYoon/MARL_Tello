@@ -62,7 +62,9 @@ class Env():
         self.infos = {}
 
 
-    def reset(self) -> Tuple[np.ndarray, np.ndarray]:
+    def reset(self, episode_index: int = None) -> Tuple[np.ndarray, np.ndarray]:
+        if episode_index is not None:
+            self.episode_index = episode_index
         # Load ground truth map and initial cell
         self.num_step = 0
         self.ground_truth, _ = self.import_ground_truth(self.episode_index)
@@ -106,9 +108,10 @@ class Env():
         
         self._compute_intermediate_values()
         self.obs_buf = self._get_observations()
+        self.state_buf = self._get_states()
         self._update_infos()
 
-        return self.obs_buf, self.infos
+        return self.obs_buf, self.state_buf, self.infos
 
 
     def _set_goal_state(self) -> np.ndarray:
@@ -310,108 +313,3 @@ class Env():
     @abstractmethod
     def _get_rewards(self) -> np.ndarray:
         raise NotImplementedError(f"Please implement the '_get_rewards' method for {self.__class__.__name__}.")
-
-    
-    # ===============================================================
-
-
-    # # ================ 삭제 후보 ==================== # 
-
-
-    # # 해당 함수는 specific env 코드에 넣고, intermediate 값 계산과 함께 사용
-    # def check_done(self) -> bool:
-    #     """
-    #     Returns:
-    #         0  = 계속 진행
-    #         1  = 목표 도달
-    #         -1  = 장애물 충돌 또는 에이전트 간 충돌
-    #     """
-    #     # 1) 로봇 셀 좌표
-    #     cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
-    #     rows, cols = cells[:, 0], cells[:, 1]
-        
-    #     # 2) 종료 조건 판정
-    #     in_goal      = np.all(self.ground_truth[rows, cols] == 3)
-    #     hit_obstacle = np.any(self.ground_truth[rows, cols] == 1)
-    #     # 에이전트 간 충돌 (동일 셀 공유)
-    #     flat_idx  = rows * self.ground_truth.shape[1] + cols
-    #     counts    = np.bincount(flat_idx)
-    #     collision = np.any(counts > 1)
-
-    #     # 3) 상태 코드 결정
-    #     if in_goal:
-    #         code = 1
-    #     elif hit_obstacle or collision:
-    #         code = -1
-    #     else:
-    #         code = 0
-
-    #     # 4) self.done 설정
-    #     self.done = (code != 0)
-
-    #     # 5) 이유 출력
-    #     if code == 1:
-    #         print("[Done] 종료 사유: 목표 도달")
-    #     elif code == -1:
-    #         reason_list = []
-    #         if hit_obstacle:
-    #             reason_list.append("장애물 충돌")
-    #         if collision:
-    #             reason_list.append("에이전트 간 충돌")
-    #         print(f"[Done] 종료 사유: {', '.join(reason_list)}")
-
-    #     return code
-
-
-
-
-    # def heading_to_vector(self, heading, length=1):
-    #     # Convert heading to vector
-    #     if isinstance(heading, (list, np.ndarray)):
-    #         heading = heading[0]
-    #     heading_rad = np.radians(heading)
-    #     return np.cos(heading_rad) * length, np.sin(heading_rad) * length
-
-
-    # def create_sensing_mask(self, location, heading):
-    #     mask = np.zeros_like(self.ground_truth)
-
-    #     location_cell = get_cell_position_from_coords(location, self.belief_info)
-    #     # Create a Point for the robot's location
-    #     robot_point = Point(location_cell)
-    #     # heading = heading*(360/self.num_angles)
-
-    #     # Calculate the angles for the sector
-    #     start_angle = (heading - self.fov / 2 + 360) % 360
-    #     end_angle = (heading + self.fov / 2) % 360
-
-    #     # Create points for the sector
-    #     sector_points = [robot_point]
-    #     if start_angle <= end_angle:
-    #         angle_range = np.linspace(start_angle, end_angle, 20)
-    #     else:
-    #         angle_range = np.concatenate([np.linspace(start_angle, 360, 10), np.linspace(0, end_angle, 10)])
-    #     for angle in angle_range: 
-    #         x = location_cell[0] + self.sensor_range/self.cell_size * np.cos(np.radians(angle))
-    #         y = location_cell[1] + self.sensor_range/self.cell_size * np.sin(np.radians(angle))
-    #         sector_points.append(Point(x, y))
-    #     sector_points.append(robot_point) 
-
-    #     sector = Polygon(sector_points)
-
-    #     x_coords, y_coords = sector.exterior.xy
-    #     y_coords = np.rint(y_coords).astype(int)
-    #     x_coords = np.rint(x_coords).astype(int)
-    #     rr, cc = sk_polygon(
-    #             [int(round(y)) for y in y_coords],
-    #             [int(round(x)) for x in x_coords],
-    #             shape=mask.shape
-    #         )
-        
-    #     free_connected_map = get_free_and_connected_map(location, self.belief_info)
-
-    #     mask[rr, cc] = (free_connected_map[rr, cc] == free_connected_map[location_cell[1], location_cell[0]])
-       
-    #     return mask
-    
-    # ============================================== # 
