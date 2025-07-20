@@ -35,7 +35,7 @@ class MainDriver:
         self.writer = SummaryWriter(log_dir=self.experiment_dir)
         self.write_interval = self.cfg['agent']['experiment']['write_interval']
         if self.write_interval == 'auto':
-            self.write_interval = int(self.timesteps / 10)
+            self.write_interval = int(self.timesteps / 30)
 
         self.checkpoint_interval = self.cfg['agent']['experiment']['checkpoint_interval']
         if self.checkpoint_interval == 'auto':

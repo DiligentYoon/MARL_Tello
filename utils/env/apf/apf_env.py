@@ -204,7 +204,7 @@ class APFEnv(Env):
     
 
     def _get_rewards(self):
-        reward =  (np.array(self.prev_dists) - np.array(self.cur_dists)).astype(np.float32)
+        reward =  15 * (np.array(self.prev_dists) - np.array(self.cur_dists)).astype(np.float32)
 
         for i in range(self.num_agent):
             

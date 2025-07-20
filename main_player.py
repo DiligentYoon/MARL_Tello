@@ -190,7 +190,7 @@ if __name__ == '__main__':
         config = yaml.safe_load(f)
 
     # 2. Specify the path to the trained model checkpoint
-    CHECKPOINT_PATH = os.path.join(os.getcwd(), "results/25-07-20_22-54-37_MARL/checkpoints/agent_48014.pt") # <-- TODO: CHANGE THIS
+    CHECKPOINT_PATH = os.path.join(os.getcwd(), "results/25-07-21_02-04-52_MARL/checkpoints/agent_96022.pt") # <-- TODO: CHANGE THIS
 
     # 3. Create and run the player
     if os.path.exists(CHECKPOINT_PATH):

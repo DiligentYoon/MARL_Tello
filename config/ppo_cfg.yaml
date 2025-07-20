@@ -7,7 +7,7 @@ paths:
 # Environment Settings
 env:
   seed: 42
-  physics_dt: 0.1
+  physics_dt: 0.01
   device: "cuda"
 
   num_agent: 4

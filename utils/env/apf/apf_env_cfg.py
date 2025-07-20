@@ -19,7 +19,7 @@ class APFEnvCfg(EnvCfg):
         self.num_state = 11
 
         # Episode Information
-        self.decimation = 1
+        self.decimation = 5
         self.max_episode_steps = 128
 
         # APF Information
