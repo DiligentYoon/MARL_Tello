@@ -181,7 +181,7 @@ class APFEnv(Env):
         hit_obstacle[valid_indices] = self.ground_truth[valid_rows, valid_cols] == self.map_mask["occupied"]
         self.is_collided_obstacle = (hit_obstacle | out_of_bounds)[:, np.newaxis]
 
-        # 드론 간 충돌
+        # 드론 간 충돌 (점유 셀이 겹치면 충돌 판단)
         flat_indices = rows * W + cols
         unique_indices, counts = np.unique(flat_indices, return_counts=True)
         collided_indices = unique_indices[counts > 1]

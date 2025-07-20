@@ -164,7 +164,8 @@ class MainDriver:
                 if global_step > 0 and (global_step - metrics['episode_length']) // self.write_interval < global_step // self.write_interval:
                     self._write_tracking_data(global_step)
                 # Checkpoint
-                self._save_checkpoint(global_step)
+                if global_step > 0 and (global_step - metrics['episode_length']) // self.checkpoint_interval < global_step // self.checkpoint_interval:
+                    self._save_checkpoint(global_step)
 
                 # --- Launch New Job for the finished worker ---
                 self.workers[worker_id].set_weights.remote(cpu_weights)
@@ -218,11 +219,10 @@ class MainDriver:
 
     def _save_checkpoint(self, global_step: int):
         """Saves a checkpoint of the master agent's models."""
-        if global_step > 0 and global_step % self.checkpoint_interval == 0:
-            filepath = os.path.join(self.experiment_dir, "checkpoints", f"agent_{global_step}.pt")
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
-            torch.save(self.master_agent.get_checkpoint_data(), filepath)
-            print(f"--- Checkpoint saved at step {global_step} ---")
+        filepath = os.path.join(self.experiment_dir, "checkpoints", f"agent_{global_step}.pt")
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        torch.save(self.master_agent.get_checkpoint_data(), filepath)
+        print(f"--- Checkpoint saved at step {global_step} ---")
 
 
 

@@ -54,7 +54,8 @@ class RolloutWorker:
         episode_reward = 0
         episode_length = 0
 
-        while not (np.any(terminated) or np.any(truncated)):
+        done = False
+        while not done:
             # Convert observation to a tensor for the policy network
             obs_tensor = torch.tensor(obs, dtype=torch.float32, device=self.device)
 
@@ -81,6 +82,7 @@ class RolloutWorker:
             
             obs = next_obs
             state = next_state
+            done = np.any(terminated) | np.any(truncated)
             episode_reward += rewards.sum()
             episode_length += 1
 

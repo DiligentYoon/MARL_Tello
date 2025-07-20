@@ -1,7 +1,7 @@
 
 ray:
   num_cpus: 4
-  num_workers: 3
+  num_workers: 4
 
 # Environment Settings
 env:
@@ -73,4 +73,4 @@ model:
     
 # Training Settings
 train:
-  timesteps: 4800
+  timesteps: 48000
