@@ -124,6 +124,7 @@ class MainDriver:
         # Start the first batch of rollouts
         jobs = [worker.rollout.remote(i) for i, worker in enumerate(self.workers)]
         self.global_episode_count = len(self.workers)
+        self.max_episode = self.cfg["train"]["max_episode"]
 
         global_step = 0
         while global_step < self.cfg['train']['timesteps']:
@@ -169,7 +170,7 @@ class MainDriver:
 
                 # --- Launch New Job for the finished worker ---
                 self.workers[worker_id].set_weights.remote(cpu_weights)
-                new_job = self.workers[worker_id].rollout.remote(self.global_episode_count)
+                new_job = self.workers[worker_id].rollout.remote(self.global_episode_count % self.max_episode)
                 self.global_episode_count += 1
                 jobs.append(new_job)
 

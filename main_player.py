@@ -5,7 +5,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import torch
 import yaml
 import numpy as np
-from tqdm import tqdm
+# from tqdm import tqdm
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -80,8 +80,8 @@ class MainPlayer:
     def play(self):
         """Main evaluation loop, interacting directly with the environment."""
         print("\n==================================")
-        print("===   Evaluation Start         ===")
-        print("==================================")
+        print("====   Evaluation Start         ====")
+        print("====================================")
 
         obs, state, _ = self.env.reset()
         done = False
@@ -97,12 +97,12 @@ class MainPlayer:
         ax_b.legend(fontsize=6, loc='upper right')
 
         # Figure 2: ground truth + path
-        fig_t, ax_t = plt.subplots(figsize=(5,5))
-        ax_t.imshow(self.env.ground_truth, cmap='gray', vmin=0, vmax=3)
-        ax_t.axis('off')
-        lines_t = [ax_t.plot([], [], marker='o', markersize=1, label=f"A{i}", color=f"C{i}")[0]
-                for i in range(self.num_agents)]
-        ax_t.legend(fontsize=6, loc='upper right')
+        # fig_t, ax_t = plt.subplots(figsize=(5,5))
+        # ax_t.imshow(self.env.ground_truth, cmap='gray', vmin=0, vmax=3)
+        # ax_t.axis('off')
+        # lines_t = [ax_t.plot([], [], marker='o', markersize=1, label=f"A{i}", color=f"C{i}")[0]
+        #         for i in range(self.num_agents)]
+        # ax_t.legend(fontsize=6, loc='upper right')
 
         # Figure 3: patches for each agent
         # fig_p, axes_p = plt.subplots(1, self.num_agents, figsize=(3*self.num_agents,3))
@@ -114,11 +114,13 @@ class MainPlayer:
 
         go_actions = np.zeros((self.num_agents, self.env.cfg.num_act), dtype=np.float32)
         go_actions[:, 0] = 0.1
+        go_actions[:, 1] = 0.3
         traj_cells = [[] for _ in range(self.num_agents)]
         while not done:
             print(f"Step : ({length}/{self.env.cfg.max_episode_steps})")
 
             action, _ = self.agent.act(torch.tensor(obs), deterministic=True)
+            print(f"lin vel: {action[:, 0]}")
             next_obs, next_state, reward, terminated, truncated, info = self.env.step(action.detach().cpu().numpy())
             # next_obs, next_state, reward, terminated, truncated, info = self.env.step(go_actions)
 
@@ -141,16 +143,16 @@ class MainPlayer:
             buf_b.close()
 
             # --- 업데이트 Figure 2: truth map with path ---
-            for i in range(self.num_agents):
-                xs = [c[0] for c in traj_cells[i]]
-                ys = [c[1] for c in traj_cells[i]]
-                lines_t[i].set_data(xs, ys)
-            fig_t.canvas.draw()
-            buf_t = io.BytesIO()
-            fig_t.savefig(buf_t, format='png', bbox_inches='tight')
-            buf_t.seek(0)
-            self.truth_writer.append_data(imageio.imread(buf_t))
-            buf_t.close()
+            # for i in range(self.num_agents):
+            #     xs = [c[0] for c in traj_cells[i]]
+            #     ys = [c[1] for c in traj_cells[i]]
+            #     lines_t[i].set_data(xs, ys)
+            # fig_t.canvas.draw()
+            # buf_t = io.BytesIO()
+            # fig_t.savefig(buf_t, format='png', bbox_inches='tight')
+            # buf_t.seek(0)
+            # self.truth_writer.append_data(imageio.imread(buf_t))
+            # buf_t.close()
 
             # --- 업데이트 Figure 3: patches for each agent ---
             # for i in range(self.num_agents):
@@ -181,7 +183,7 @@ class MainPlayer:
         self.truth_writer.close()
         self.patch_writer.close()
         plt.close(fig_b)
-        plt.close(fig_t)
+        # plt.close(fig_t)
         # plt.close(fig_p)
 
 if __name__ == '__main__':
@@ -190,7 +192,7 @@ if __name__ == '__main__':
         config = yaml.safe_load(f)
 
     # 2. Specify the path to the trained model checkpoint
-    CHECKPOINT_PATH = os.path.join(os.getcwd(), "results/25-07-21_02-04-52_MARL/checkpoints/agent_96022.pt") # <-- TODO: CHANGE THIS
+    CHECKPOINT_PATH = os.path.join(os.getcwd(), "results/25-07-21_13-03-15_MARL/checkpoints/agent_32033.pt") # <-- TODO: CHANGE THIS
 
     # 3. Create and run the player
     if os.path.exists(CHECKPOINT_PATH):

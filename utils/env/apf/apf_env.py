@@ -45,6 +45,9 @@ class APFEnv(Env):
         """
             업데이트된 state값들을 바탕으로, obs값에 들어가는 planning state 계산
         """
+        # Potential Based Reward Shaping을 수행하기 위한 현재 거리 계산
+        self.cur_dists = [np.linalg.norm(self.robot_locations[i] - self.goal_coords) for i in range(self.num_agent)]
+
         # APF 벡터 & Belief맵 기반의 Local Patch 계산
         for i in range(self.num_agent):
             drone_cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
@@ -88,21 +91,22 @@ class APFEnv(Env):
         """
         # APF_vector [n, 2]
         apf_vectors = self.APF_vec
+        goal_info = self.goal_coords.repeat((self.num_agent)).reshape(-1, 2)
 
         # 자신의 Position (x, y, yaw) [n, 3]
-        positions = np.hstack((self.robot_locations, self.angles[:, np.newaxis]))
+        rads = np.radians(self.angles).reshape(-1, 1)
+        positions = np.hstack((self.robot_locations, rads))
 
         # 자신의 Velocity (vx, vy) [n, 2]
-        rads = np.radians(self.angles)
-        vel_x = self.robot_velocities * np.cos(rads).reshape(-1, 1)
-        vel_y = self.robot_velocities * np.sin(rads).reshape(-1, 1)
+        vel_x = self.robot_velocities * np.cos(rads)
+        vel_y = self.robot_velocities * np.sin(rads)
         velocities = np.hstack((vel_x, vel_y))
 
         # Closest neighbor state [n, 4] (pos_x, pos_y, vel_x, vel_y)
         neighbor_states = self.neighbor_states
 
         # Concatenate
-        obs = np.hstack((apf_vectors, positions, velocities, neighbor_states)).astype(np.float32)
+        obs = np.hstack((apf_vectors, positions, velocities, neighbor_states, goal_info)).astype(np.float32)
         
         return obs
     
@@ -119,19 +123,22 @@ class APFEnv(Env):
         # APF_vector [n, 2]
         apf_vectors = self.APF_vec
 
+        # # Goal vector [n, 2]
+        goal_info = self.goal_coords.repeat((self.num_agent)).reshape(-1, 2)
+
         # 자신의 Position (x, y, yaw) [n, 3]
-        positions = np.hstack((self.robot_locations, self.angles[:, np.newaxis]))
+        rads = np.radians(self.angles).reshape(-1, 1)
+        positions = np.hstack((self.robot_locations, rads))
 
         # 자신의 Velocity (vx, vy) [n, 2]
-        rads = np.radians(self.angles)
-        vel_x = self.robot_velocities * np.cos(rads).reshape(-1, 1)
-        vel_y = self.robot_velocities * np.sin(rads).reshape(-1, 1)
+        vel_x = self.robot_velocities * np.cos(rads)
+        vel_y = self.robot_velocities * np.sin(rads)
         velocities = np.hstack((vel_x, vel_y))
 
         # Closest neighbor state [n, 4] (pos_x, pos_y, vel_x, vel_y)
         neighbor_states = self.neighbor_states
 
-        state = np.hstack((apf_vectors, positions, velocities, neighbor_states)).astype(np.float32)
+        state = np.hstack((apf_vectors, positions, velocities, neighbor_states, goal_info)).astype(np.float32)
 
         return state
 
@@ -204,16 +211,20 @@ class APFEnv(Env):
     
 
     def _get_rewards(self):
-        reward =  15 * (np.array(self.prev_dists) - np.array(self.cur_dists)).astype(np.float32)
+        reward =  3 * (np.array(self.prev_dists) - np.array(self.cur_dists)).astype(np.float32)
 
         for i in range(self.num_agent):
             
+            # Goal 도달 리워드
             if self.is_reached_goal[i] and self.is_first_reached[i]:
                 reward[i] += self.cfg.reward_info["goal"]
                 self.is_first_reached[i] = False
             
+            # 충돌 페널티
             if self.is_collided_drone[i] or self.is_collided_obstacle[i]:
                 reward[i] += self.cfg.reward_info["collision"]
+
+        self.prev_dists = self.cur_dists
 
         return reward
 

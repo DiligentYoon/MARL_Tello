@@ -14,12 +14,12 @@ class APFEnvCfg(EnvCfg):
         super().__init__(cfg)
 
         # Space Information
-        self.num_obs = 11
+        self.num_obs = 13
         self.num_act = 2
-        self.num_state = 11
+        self.num_state = 13
 
         # Episode Information
-        self.decimation = 5
+        self.decimation = 1
         self.max_episode_steps = 128
 
         # APF Information

@@ -219,7 +219,7 @@ class Env():
             # ============== Step Numerical Simulation ================
 
             # 값 계산
-            angle_new = (self.angles[i] + yaw_rate * self.dt) % 360
+            angle_new = (self.angles[i] + np.rad2deg(yaw_rate) * self.dt) % 360
             dx = v * self.dt * np.cos(np.radians(angle_new))
             dy = v * self.dt * np.sin(np.radians(angle_new))
 
@@ -230,9 +230,6 @@ class Env():
             # Belief 업데이트
             cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
             self.update_robot_belief(cell, angle_new)
-        
-        # Potential Based Reward Shaping을 수행하기 위한 현재 거리 계산
-        self.cur_dists = [np.linalg.norm(self.robot_locations[i] - self.goal_coords) for i in range(self.num_agent)]
 
         # Done 신호 생성
         self.num_step += 1
@@ -247,7 +244,6 @@ class Env():
 
          # ======== 추가 정보 infos 업데이트 ===========
         self._update_infos()
-        self.prev_dists = self.cur_dists
 
         return self.obs_buf, self.state_buf, self.reward_buf, self.termination_buf, self.truncation_buf, self.infos
     
