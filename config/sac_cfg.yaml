@@ -1,0 +1,77 @@
+
+ray:
+  num_cpus: 4
+  num_workers: 4
+
+# Environment Settings
+env:
+  seed: 42
+  physics_dt: 0.1
+  device: "cuda"
+
+  num_agent: 1
+  max_velocity: 0.3
+  max_yaw_rate: 30.0 # degrees
+  fov: 120.0 # degrees
+  cell_size: 0.01 # meter
+  sensor_range: 0.3 # meter
+  plot: False
+
+  map_representation:
+    free: 0
+    unknown: 1
+    occupied: 2
+    goal: 3
+    start: 4
+
+  reward_info:
+    goal_threshold: 0.2
+    goal: 100
+    collision: -1
+
+
+# Agent Settings
+agent:
+  class: SAC
+  gradient_steps: 4            # gradient steps
+  batch_size: 256              # training batch size
+  minimum_buffer_size: 1000   # minimum_buffer size for starting training
+
+  discount_factor: 0.99        # discount factor (gamma)
+  polyak: 0.005               # soft update hyperparameter (tau)
+
+  learning_rate: 1e-4                  # learning rate
+  learning_rate_scheduler: null        # learning rate scheduler class (see torch.optim.lr_scheduler)
+  learning_rate_scheduler_kwargs: {}   # learning rate scheduler's kwargs (e.g. {"step_size": 1e-3})
+
+  grad_norm_clip: 0.5              # clipping coefficient for the norm of the gradients
+
+  entropy_loss_scale: 0.0      # entropy loss scaling factor
+  value_loss_scale: 1.0        # value loss scaling factor
+
+  learn_entropy: True          # learn entropy
+  entropy_learning_rate: 1e-4  # entropy learning rate
+  initial_entropy_value: 0.2   # initial entropy value
+
+  buffer:
+    replay_size: 100000
+
+  experiment:
+    directory: "MARL"
+    experiment_name: ""
+    write_interval: auto
+    checkpoint_interval: auto
+
+model:
+  actor:
+    type: "Gaussian"
+    hidden: [256, 256]
+  
+  critic:
+    type: "Deterministic"
+    hidden: [256, 256]
+    
+# Training Settings
+train:
+  max_episode: 100
+  timesteps: 32000
