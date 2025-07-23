@@ -9,9 +9,9 @@ env:
   physics_dt: 0.1
   device: "cuda"
 
-  num_agent: 4
-  max_velocity: 1.0
-  max_yaw_rate: 35.0 # degrees
+  num_agent: 1
+  max_velocity: 0.3
+  max_yaw_rate: 30.0 # degrees
   fov: 120.0 # degrees
   cell_size: 0.01 # meter
   sensor_range: 0.3 # meter

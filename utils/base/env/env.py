@@ -50,6 +50,8 @@ class Env():
         # Location은 2D, Velocity는 스칼라 커맨드
         self.robot_locations = np.zeros((self.num_agent, 2), dtype=np.float32)
         self.robot_velocities = np.zeros((self.num_agent, 1), dtype=np.float32)
+        self.robot_2d_velocities = np.zeros((self.num_agent, 2), dtype=np.float32)
+        self.robot_yaw_rate = np.zeros((self.num_agent, 1), dtype=np.float32)
 
         self.num_step = 0
         self.reached_goal = np.zeros((self.cfg.num_agent, 1), dtype=np.bool_)
@@ -89,7 +91,7 @@ class Env():
         self.belief_info.map_origin_y = self.belief_origin_y
 
         # Initialize headings
-        self.angles = 0 * np.random.uniform(0, 360, size=self.num_agent)
+        self.angles = 0 * np.random.uniform(0, 2*np.pi, size=self.num_agent)
         # Perform initial sensing update for each agent
         for i in range(self.num_agent):
             cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
@@ -99,7 +101,7 @@ class Env():
                 round(self.sensor_range / self.cell_size),
                 self.robot_belief,
                 self.ground_truth,
-                self.angles[i],
+                np.rad2deg(self.angles[i]),
                 360,
                 self.map_mask
             )
@@ -211,25 +213,21 @@ class Env():
         self._pre_apply_action(actions)
 
         # apply action : 연구에서는 고정할 것이기 때문에 따로 함수로 안뺌.
-        for i, (v, yaw_rate) in enumerate(self.actions):
+        for i, action in enumerate(self.actions):
             # 이미 도달한 에이전트는 상태 업데이트 X
             if self.reached_goal[i]:
                 continue
             
             # ============== Step Numerical Simulation ================
 
-            # 값 계산
-            angle_new = (self.angles[i] + np.rad2deg(yaw_rate) * self.dt) % 360
-            dx = v * self.dt * np.cos(np.radians(angle_new))
-            dy = v * self.dt * np.sin(np.radians(angle_new))
+            # action을 적용하여 robot state (위치 및 각도) 업데이트
+            self._apply_action(i, action)
 
-            # 위치 및 각도 업데이트
-            self.angles[i] = angle_new
-            self.robot_locations[i] += np.array([dx, dy])
+            # ========================================================
 
             # Belief 업데이트
             cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
-            self.update_robot_belief(cell, angle_new)
+            self.update_robot_belief(cell, np.rad2deg(self.angles[i]))
 
         # Done 신호 생성
         self.num_step += 1
@@ -292,6 +290,11 @@ class Env():
 
 
     # =============== Env-Specific Abstract Methods =================
+
+    @abstractmethod
+    def _apply_action(self, agent_id: int, action: np.ndarray) -> np.ndarray:
+        raise NotImplementedError(f"Please implement the '_apply_action' method for {self.__class__.__name__}.") 
+    
 
     @abstractmethod
     def _get_observations(self) -> np.ndarray:

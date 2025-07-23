@@ -39,6 +39,17 @@ class APFEnv(Env):
         # 나머지 플래그는 사용하기 전 계산 되므로 초기화 X
         self.is_first_reached = np.ones((self.num_agent, 1), dtype=np.bool_)
         return super().reset(episode_index)
+    
+
+    def _apply_action(self, agent_id: int, action: np.ndarray):
+        velocity = action[0]
+        yaw_rate = action[1]
+        angle_new = (self.angles[agent_id] + np.rad2deg(yaw_rate) * self.dt) % 360
+        dx = velocity * self.dt * np.cos(np.radians(angle_new))
+        dy = velocity * self.dt * np.sin(np.radians(angle_new))
+
+        self.angles[agent_id] = angle_new
+        self.robot_locations[agent_id] += np.array([dx, dy])
 
 
     def _compute_intermediate_values(self):
@@ -271,7 +282,6 @@ class APFEnv(Env):
 
         # 2) Repulsive term: 8-directional unit repulsion, magnitude ∝ 1/dist²
         f_rep = np.zeros(2, dtype=float)
-        obs_idxs = np.argwhere(patch == 2)  # obstacle locations in patch coords
         eps = 1e-6
 
         for i, j in np.argwhere(patch == 2):
