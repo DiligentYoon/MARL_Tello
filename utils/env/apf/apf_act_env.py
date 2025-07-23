@@ -276,7 +276,7 @@ class APFActEnv(Env):
     
 
     def _get_rewards(self):
-        reward =  3 * (np.array(self.prev_dists) - np.array(self.cur_dists)).astype(np.float32)
+        reward =  10 * (np.array(self.prev_dists) - np.array(self.cur_dists)).astype(np.float32)
 
         for i in range(self.num_agent):
             
@@ -290,6 +290,9 @@ class APFActEnv(Env):
                 reward[i] += self.cfg.reward_info["collision"]
 
         self.prev_dists = self.cur_dists
+
+        # time penalty
+        reward -= 1
 
         return reward
 
@@ -337,7 +340,8 @@ class APFActEnv(Env):
         # 5) 장애물 까지의 거리 계산
         obs_idxs = np.argwhere(patch == self.cfg.map_representation["occupied"])
         if obs_idxs.shape[0] == 0:
-            return patch, float('inf')
+            # 장애물 없는경우
+            return patch, np.array([half, half], dtype=np.float32)
 
         patch_center_cell = np.array([half, half])
 

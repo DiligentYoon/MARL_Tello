@@ -5,6 +5,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import torch
 import yaml
 import numpy as np
+import random
 # from tqdm import tqdm
 import matplotlib
 matplotlib.use('Agg')
@@ -14,6 +15,7 @@ import matplotlib.image as mpimg
 from utils.agent.masac import MASACAgent
 from utils.model.model import ActorGaussianNet, CriticDeterministicNet
 from utils.env.apf.apf_env import APFEnv
+from utils.env.apf.apf_act_env import APFActEnv
 from utils.utils import get_coords_from_cell_position, get_cell_position_from_coords
 
 class MainPlayer:
@@ -31,7 +33,7 @@ class MainPlayer:
         self.device = torch.device("cpu") # Evaluation can run on CPU
 
         # --- Environment and Agent Creation ---
-        self.env = APFEnv(episode_index=episode_index, cfg=self.cfg['env'])
+        self.env = APFActEnv(episode_index=episode_index, cfg=self.cfg['env'])
         self.num_agents = self.cfg['env']['num_agent']
         obs_dim = self.env.cfg.num_obs
         state_dim = self.env.cfg.num_state
@@ -83,13 +85,14 @@ class MainPlayer:
         print("====   Evaluation Start         ====")
         print("====================================")
 
+        quivers_b = None
         obs, state, _ = self.env.reset()
         done = False
         total_reward = 0
         length = 0
 
         # Figure 1: belief map + path
-        fig_b, ax_b = plt.subplots(figsize=(5,5))
+        fig_b, ax_b = plt.subplots(figsize=(18,18))
         im_b = ax_b.imshow(self.env.robot_belief, cmap='gray', vmin=0, vmax=2)
         ax_b.axis('off')
         lines_b = [ax_b.plot([], [], marker='o', markersize=1, label=f"A{i}", color=f"C{i}")[0]
@@ -120,7 +123,7 @@ class MainPlayer:
             print(f"Step : ({length}/{self.env.cfg.max_episode_steps})")
 
             action, _ = self.agent.act(torch.tensor(obs), deterministic=True)
-            print(f"lin vel: {action[:, 0]}")
+            print(f"lin vel: {self.env.robot_velocities}")
             next_obs, next_state, reward, terminated, truncated, info = self.env.step(action.detach().cpu().numpy())
             # next_obs, next_state, reward, terminated, truncated, info = self.env.step(go_actions)
 
@@ -135,6 +138,23 @@ class MainPlayer:
                 xs = [c[0] for c in traj_cells[i]]
                 ys = [c[1] for c in traj_cells[i]]
                 lines_b[i].set_data(xs, ys)
+
+
+            if quivers_b:
+                quivers_b.remove()
+            starts_xy = np.array([traj[-1] for traj in traj_cells])
+
+            angles = self.env.angles
+            normalized_vectors = np.vstack([np.cos(angles), np.sin(angles)]).transpose()
+
+            arrow_scale = 10.0 # 화살표 길이 (셀 단위)
+            scaled_vectors = normalized_vectors * arrow_scale
+
+            # 4. quiver 함수로 새로운 화살표들을 그림
+            quivers_b = ax_b.quiver(starts_xy[:, 0], starts_xy[:, 1],          # 화살표 시작점 X, Y
+                                    scaled_vectors[:, 0], -scaled_vectors[:, 1], # 화살표 방향 U, V
+                                    color='cyan', angles='xy', scale_units='xy', scale=1)
+
             fig_b.canvas.draw()
             buf_b = io.BytesIO()
             fig_b.savefig(buf_b, format='png', bbox_inches='tight')
@@ -192,11 +212,11 @@ if __name__ == '__main__':
         config = yaml.safe_load(f)
 
     # 2. Specify the path to the trained model checkpoint
-    CHECKPOINT_PATH = os.path.join(os.getcwd(), "results/25-07-21_13-03-15_MARL/checkpoints/agent_32033.pt") # <-- TODO: CHANGE THIS
+    CHECKPOINT_PATH = os.path.join(os.getcwd(), "results/25-07-23_23-09-08_MARL/checkpoints/agent_300365.pt") # <-- TODO: CHANGE THIS
 
     # 3. Create and run the player
     if os.path.exists(CHECKPOINT_PATH):
-        player = MainPlayer(episode_index=0, cfg=config, checkpoint_path=CHECKPOINT_PATH)
+        player = MainPlayer(episode_index=random.randint(0, 99), cfg=config, checkpoint_path=CHECKPOINT_PATH)
         player.play()
     else:
         print(f"ERROR: Checkpoint file not found at '{CHECKPOINT_PATH}'")

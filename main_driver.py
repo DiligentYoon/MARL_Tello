@@ -13,6 +13,7 @@ from utils.runner.rollout_worker import RolloutWorker
 from utils.agent.masac import MASACAgent
 from utils.model.model import ActorGaussianNet, CriticDeterministicNet
 from utils.env.apf.apf_env import APFEnv # Assuming this is the environment to get dims
+from utils.env.apf.apf_act_env import APFActEnv
 
 class MainDriver:
     """
@@ -46,7 +47,7 @@ class MainDriver:
 
         # --- Environment Info (for model dimensions) ---
         # Create a temporary env to get observation and action dimensions
-        temp_env = APFEnv(episode_index=0, cfg=self.cfg['env'])
+        temp_env = APFActEnv(episode_index=0, cfg=self.cfg['env'])
         obs_dim = temp_env.cfg.num_obs
         state_dim = temp_env.cfg.num_state
         action_dim = temp_env.cfg.num_act

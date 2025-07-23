@@ -4,6 +4,7 @@ import torch
 from typing import Dict, Any
 
 from utils.env.apf.apf_env import APFEnv
+from utils.env.apf.apf_act_env import APFActEnv
 from utils.model.model import ActorGaussianNet
 
 @ray.remote
@@ -25,7 +26,7 @@ class RolloutWorker:
         self.device = torch.device("cpu") # Workers typically run on CPU
 
         # --- Environment ---
-        self.env = APFEnv(episode_index=0, cfg=env_cfg)
+        self.env = APFActEnv(episode_index=0, cfg=env_cfg)
         
         # --- Lightweight Agent for Acting ---
         # The worker only needs the policy network to sample actions.

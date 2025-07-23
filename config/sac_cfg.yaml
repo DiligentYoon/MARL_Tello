@@ -9,7 +9,7 @@ env:
   physics_dt: 0.1
   device: "cuda"
 
-  num_agent: 1
+  num_agent: 4
   max_velocity: 0.3
   max_yaw_rate: 30.0 # degrees
   fov: 120.0 # degrees
@@ -27,13 +27,13 @@ env:
   reward_info:
     goal_threshold: 0.2
     goal: 100
-    collision: -1
+    collision: -10
 
 
 # Agent Settings
 agent:
   class: SAC
-  gradient_steps: 4            # gradient steps
+  gradient_steps: 8            # gradient steps
   batch_size: 256              # training batch size
   minimum_buffer_size: 1000   # minimum_buffer size for starting training
 
@@ -74,4 +74,4 @@ model:
 # Training Settings
 train:
   max_episode: 100
-  timesteps: 32000
+  timesteps: 300000
