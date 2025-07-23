@@ -85,6 +85,7 @@ if __name__ == '__main__':
     step = 0
     total_step = 256
     
+    
     go_actions = np.ones((num_agents, num_actions), dtype=np.float32)
     go_actions[:, 1] = -0.61
     go_actions[:, 2] = -1
