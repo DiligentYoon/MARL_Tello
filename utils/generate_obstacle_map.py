@@ -26,17 +26,17 @@ def generate_map_with_obstacles(width, height, start_size, goal_size,
     grid = np.zeros((height, width), dtype=np.uint8)
     t = wall_thickness
 
+    # (2) start and goal zones
+    sx0, sy0 = t, t
+    gx1, gy1 = height - t - 1, width - t - 1
+    grid[:, sy0:sy0+start_size] = 2
+    grid[:, gy1-goal_size+1:gy1+1] = 3
+
     # (1) boundary walls
     grid[0:t, :] = 1
     grid[-t:, :] = 1
     grid[:, 0:t] = 1
     grid[:, -t:] = 1
-
-    # (2) start and goal zones
-    sx0, sy0 = t, t
-    gx1, gy1 = height - t - 1, width - t - 1
-    grid[sx0:sx0+start_size, sy0:sy0+start_size] = 2
-    grid[gx1-goal_size+1:gx1+1, gy1-goal_size+1:gy1+1] = 3
 
     # (3) carve L-shaped guaranteed path
     carve_y = sx0 + start_size - 1
@@ -85,7 +85,7 @@ def main():
     parser.add_argument("--height", type=int, default=100, help="map height (px)")
     parser.add_argument("--start_size", type=int, default=50, help="start zone size (px)")
     parser.add_argument("--goal_size", type=int, default=50, help="goal zone size (px)")
-    parser.add_argument("--num_rects", type=int, default=20, help="number of obstacles")
+    parser.add_argument("--num_rects", type=int, default=10, help="number of obstacles")
     parser.add_argument("--rect_min", type=int, default=5, help="min rectangle side (px)")
     parser.add_argument("--rect_max", type=int, default=20, help="max rectangle side (px)")
     parser.add_argument("--wall_thickness", type=int, default=5, help="boundary wall thickness (px)")

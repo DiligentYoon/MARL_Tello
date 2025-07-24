@@ -28,7 +28,7 @@ class MainPlayer:
 
         # Override config for evaluation
         self.eval_episodes = 1
-        self.device = torch.device("cpu") # Evaluation can run on CPU
+        self.device = torch.device("cuda") # Evaluation can run on CPU
 
         # --- Environment and Agent Creation ---
         self.env = APFEnv(episode_index=episode_index, cfg=self.cfg['env'])
@@ -49,7 +49,6 @@ class MainPlayer:
         self._load_checkpoint()
         self.agent.policy.eval()
         print("Agent and environment created for evaluation.")
-
 
 
         # --- plot variable ---
@@ -77,7 +76,7 @@ class MainPlayer:
         self.agent.policy.load_state_dict(checkpoint['policy'])
         print(f"--- Policy checkpoint loaded from {self.checkpoint_path} ---")
 
-    def play(self):
+    def play(self, heuristic: bool = False):
         """Main evaluation loop, interacting directly with the environment."""
         print("\n==================================")
         print("====   Evaluation Start         ====")
@@ -97,31 +96,37 @@ class MainPlayer:
         ax_b.legend(fontsize=6, loc='upper right')
 
         # Figure 2: ground truth + path
-        fig_t, ax_t = plt.subplots(figsize=(5,5))
-        ax_t.imshow(self.env.ground_truth, cmap='gray', vmin=0, vmax=3)
-        ax_t.axis('off')
-        lines_t = [ax_t.plot([], [], marker='o', markersize=1, label=f"A{i}", color=f"C{i}")[0]
-                for i in range(self.num_agents)]
-        ax_t.legend(fontsize=6, loc='upper right')
+        # fig_t, ax_t = plt.subplots(figsize=(5,5))
+        # ax_t.imshow(self.env.ground_truth, cmap='gray', vmin=0, vmax=3)
+        # ax_t.axis('off')
+        # lines_t = [ax_t.plot([], [], marker='o', markersize=1, label=f"A{i}", color=f"C{i}")[0]
+        #         for i in range(self.num_agents)]
+        # ax_t.legend(fontsize=6, loc='upper right')
 
         # Figure 3: patches for each agent
-        fig_p, axes_p = plt.subplots(1, self.num_agents, figsize=(3*self.num_agents,3))
-        if self.num_agents == 1:
-            axes_p = [axes_p]
-        for ax in axes_p:
-            ax.axis('off')
+        # fig_p, axes_p = plt.subplots(1, self.num_agents, figsize=(3*self.num_agents,3))
+        # if self.num_agents == 1:
+        #     axes_p = [axes_p]
+        # for ax in axes_p:
+        #     ax.axis('off')
 
 
-        go_actions = np.zeros((self.num_agents, self.env.cfg.num_act), dtype=np.float32)
-        go_actions[:, 0] = 0.1
-        go_actions[:, 1] = 0.3
+        # go_actions = np.zeros((self.num_agents, self.env.cfg.num_act), dtype=np.float32)
+        # go_actions[:, 0] = 0.1
+        # go_actions[:, 1] = 0.3
         traj_cells = [[] for _ in range(self.num_agents)]
         while not done:
             print(f"Step : ({length}/{self.env.cfg.max_episode_steps})")
 
-            action, _ = self.agent.act(torch.tensor(obs), deterministic=True)
-            print(f"lin vel: {action[:, 0]}")
-            next_obs, next_state, reward, terminated, truncated, info = self.env.step(action.detach().cpu().numpy())
+            
+            if heuristic:
+                action = self._heuristic_action(obs)
+            else:
+                action, _ = self.agent.act(torch.tensor(obs), deterministic=True)
+                action = action.detach().cpu().numpy()
+
+            # print(f"lin vel: {action[:, 0]}")
+            next_obs, next_state, reward, terminated, truncated, info = self.env.step(action)
             # next_obs, next_state, reward, terminated, truncated, info = self.env.step(go_actions)
 
             for i in range(self.num_agents):
@@ -143,28 +148,28 @@ class MainPlayer:
             buf_b.close()
 
             # --- 업데이트 Figure 2: truth map with path ---
-            for i in range(self.num_agents):
-                xs = [c[0] for c in traj_cells[i]]
-                ys = [c[1] for c in traj_cells[i]]
-                lines_t[i].set_data(xs, ys)
-            fig_t.canvas.draw()
-            buf_t = io.BytesIO()
-            fig_t.savefig(buf_t, format='png', bbox_inches='tight')
-            buf_t.seek(0)
-            self.truth_writer.append_data(imageio.imread(buf_t))
-            buf_t.close()
+            # for i in range(self.num_agents):
+            #     xs = [c[0] for c in traj_cells[i]]
+            #     ys = [c[1] for c in traj_cells[i]]
+            #     lines_t[i].set_data(xs, ys)
+            # fig_t.canvas.draw()
+            # buf_t = io.BytesIO()
+            # fig_t.savefig(buf_t, format='png', bbox_inches='tight')
+            # buf_t.seek(0)
+            # self.truth_writer.append_data(imageio.imread(buf_t))
+            # buf_t.close()
 
-            # --- 업데이트 Figure 3: patches for each agent ---
-            for i in range(self.num_agents):
-                axes_p[i].imshow(self.env.local_patches[i], cmap='gray', vmin=0, vmax=2)
-                axes_p[i].set_title(f"A{i} patch", fontsize=8)
+            # # --- 업데이트 Figure 3: patches for each agent ---
+            # for i in range(self.num_agents):
+            #     axes_p[i].imshow(self.env.local_patches[i], cmap='gray', vmin=0, vmax=3)
+            #     axes_p[i].set_title(f"A{i} patch", fontsize=8)
 
-            fig_p.canvas.draw()
-            buf_p = io.BytesIO()
-            fig_p.savefig(buf_p, format='png', bbox_inches='tight')
-            buf_p.seek(0)
-            self.patch_writer.append_data(imageio.imread(buf_p))
-            buf_p.close()
+            # fig_p.canvas.draw()
+            # buf_p = io.BytesIO()
+            # fig_p.savefig(buf_p, format='png', bbox_inches='tight')
+            # buf_p.seek(0)
+            # self.patch_writer.append_data(imageio.imread(buf_p))
+            # buf_p.close()
 
 
             done = np.any(terminated) | np.any(truncated)
@@ -187,6 +192,38 @@ class MainPlayer:
         # plt.close(fig_t)
         # plt.close(fig_p)
 
+    def _heuristic_action(self, obs):
+        """
+        APF 기반 휴리스틱 정책 with yaw-error-based velocity damping
+        """
+        apf_vectors = obs[:, 0:2]
+        current_yaws = obs[:, 4]  # yaw in radian
+        actions = np.zeros((self.num_agents, self.env.cfg.num_act), dtype=np.float32)
+
+        max_vel = 0.2  # 최대 선속도
+
+        for i in range(self.num_agents):
+            vx, vy = apf_vectors[i]
+            theta_target = np.arctan2(vy, vx)
+            theta_current = current_yaws[i]
+            yaw_error = self._wrap_to_pi(theta_target - theta_current)
+
+            # 회전 방향은 그대로 유지
+            yaw_rate = 1.0 * yaw_error
+            damping = max(0.0, np.cos(yaw_error))  # 음수가 되면 정지
+            vel = max_vel * damping
+
+            actions[i, 0] = vel
+            actions[i, 1] = yaw_rate
+
+            print(f"[Agent {i}] APF: ({vx:.3f}, {vy:.3f}), target_yaw: {theta_target:.2f}, current_yaw: {theta_current:.2f}, yaw_error: {yaw_error:.2f}, damping: {damping:.2f} → vel: {vel:.2f}, yaw_rate: {yaw_rate:.2f}")
+
+        return actions
+
+    def _wrap_to_pi(self, angle):
+        """-pi ~ pi 범위로 각도 wrap"""
+        return (angle + np.pi) % (2 * np.pi) - np.pi
+
 if __name__ == '__main__':
     # 1. Load configuration
     with open("config/sac_cfg.yaml", 'r') as f:
@@ -197,8 +234,8 @@ if __name__ == '__main__':
 
     # 3. Create and run the player
     if os.path.exists(CHECKPOINT_PATH):
-        player = MainPlayer(episode_index=16, cfg=config, checkpoint_path=CHECKPOINT_PATH)
-        player.play()
+        player = MainPlayer(episode_index=95, cfg=config, checkpoint_path=CHECKPOINT_PATH)
+        player.play(heuristic=True)
     else:
         print(f"ERROR: Checkpoint file not found at '{CHECKPOINT_PATH}'")
         print("Please update the CHECKPOINT_PATH variable in main_player.py")

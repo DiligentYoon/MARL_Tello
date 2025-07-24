@@ -35,11 +35,11 @@ class MainDriver:
         self.writer = SummaryWriter(log_dir=self.experiment_dir)
         self.write_interval = self.cfg['agent']['experiment']['write_interval']
         if self.write_interval == 'auto':
-            self.write_interval = int(self.timesteps / 30)
+            self.write_interval = int(self.timesteps / 300)
 
         self.checkpoint_interval = self.cfg['agent']['experiment']['checkpoint_interval']
         if self.checkpoint_interval == 'auto':
-            self.checkpoint_interval = int(self.timesteps / 10)
+            self.checkpoint_interval = int(self.timesteps / 150)
 
         self.cumulative_metrics = {}
         print(f"TensorBoard logs will be saved to: {self.experiment_dir}")

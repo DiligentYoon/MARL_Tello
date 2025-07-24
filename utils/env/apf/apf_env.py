@@ -51,7 +51,15 @@ class APFEnv(Env):
         # APF 벡터 & Belief맵 기반의 Local Patch 계산
         for i in range(self.num_agent):
             drone_cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
-            apf_vec, local_patch = self.compute_apf_patch(drone_cell, self.robot_belief, self.goal_coords, self.belief_info)
+
+            pos = self.robot_locations[i]      # [x, y]
+            yaw = self.angles[i]               # in degrees
+            frontiers = extract_frontier_pixels(
+                belief_map=self.robot_belief,
+                map_info=self.belief_info,
+                drone_pose=np.array([pos[0], pos[1], yaw]))
+
+            apf_vec, local_patch = self.compute_apf_patch3(drone_cell, self.robot_belief, frontiers, self.belief_info)
             self.APF_vec[i] = apf_vec
             self.local_patches[i] = local_patch
 
@@ -300,3 +308,140 @@ class APFEnv(Env):
         # print(f"f_att: {apf_vec}")
 
         return apf_vec, patch
+
+    def compute_apf_patch2(
+        self,
+        drone_cell: np.ndarray,        # [col, row]
+        belief_map: np.ndarray,        # 2D grid
+        goal_coord: np.ndarray,        # [x, y] in world coordinates
+        map_info: MapInfo) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Extract a patch around the drone and compute APF with:
+        - Gaussian repulsion from obstacles
+        - Attraction toward goal
+        """
+        H, W = self.belief_info.map.shape
+        half = self.patch_size // 2
+
+        c, r = int(drone_cell[0]), int(drone_cell[1])
+
+        # --- 1) Extract local patch ---
+        r0, r1 = r - half, r + half
+        c0, c1 = c - half, c + half
+
+        r0_clip, r1_clip = max(r0, 0), min(r1, H)
+        c0_clip, c1_clip = max(c0, 0), min(c1, W)
+
+        pr0 = r0_clip - r0
+        pc0 = c0_clip - c0
+
+        patch = np.ones((self.patch_size, self.patch_size), dtype=belief_map.dtype)  # Default: UNKNOWN=1
+        h_src = r1_clip - r0_clip
+        w_src = c1_clip - c0_clip
+        patch[pr0:pr0 + h_src, pc0:pc0 + w_src] = belief_map[r0_clip:r1_clip, c0_clip:c1_clip]
+
+        # --- 2) Repulsive force (Gaussian decay) ---
+        f_rep = np.zeros(2, dtype=float)
+        obs_idxs = np.argwhere(patch == 2)  # obstacles in patch
+        eps = 1e-6
+        alpha = 2.0  # decay rate
+
+        for i, j in obs_idxs:
+            rel_row = i - half
+            rel_col = j - half
+            dx = rel_col * self.cell_size
+            dy = -rel_row * self.cell_size
+            diff = np.array([-dx, -dy], dtype=float)
+
+            dist2 = np.dot(diff, diff) + eps
+            f_rep += self.cfg.apf_k_rep * np.exp(-alpha * dist2) * (diff / np.sqrt(dist2))
+
+        # --- 3) Attractive force (toward goal) ---
+        drone_pos = get_coords_from_cell_position(np.array([c, r]), map_info)
+        diff = goal_coord - drone_pos
+        norm = np.linalg.norm(diff) + eps
+        f_att = self.cfg.apf_k_att * (diff / norm)
+
+        # --- 4) Sum and return APF vector and patch ---
+        apf_vec = f_att + f_rep
+        return apf_vec, patch
+
+    def compute_apf_patch3(
+        self,
+        drone_cell: np.ndarray,              # [col, row]
+        belief_map: np.ndarray,              # 2D grid
+        frontier_pixels: np.ndarray,         # List of [row, col] frontier coords
+        map_info: MapInfo) -> Tuple[np.ndarray, np.ndarray]:
+
+        """
+        Extract a patch and compute APF with:
+        - Gaussian repulsion from obstacles
+        - Gaussian-weighted attraction from all visible frontiers
+        Also, mark frontier pixels as 3 in the patch.
+
+        Returns:
+        - apf_vec: 2D APF vector [vx, vy]
+        - patch:   extracted patch with frontier pixels marked as 3
+        """
+        H, W = self.belief_info.map.shape
+        half = self.patch_size // 2
+
+        c, r = int(drone_cell[0]), int(drone_cell[1])
+
+        # --- 1) Extract local patch ---
+        r0, r1 = r - half, r + half
+        c0, c1 = c - half, c + half
+
+        r0_clip, r1_clip = max(r0, 0), min(r1, H)
+        c0_clip, c1_clip = max(c0, 0), min(c1, W)
+
+        pr0 = r0_clip - r0
+        pc0 = c0_clip - c0
+
+        patch = np.ones((self.patch_size, self.patch_size), dtype=belief_map.dtype)  # Default: UNKNOWN=1
+        h_src = r1_clip - r0_clip
+        w_src = c1_clip - c0_clip
+        patch[pr0:pr0 + h_src, pc0:pc0 + w_src] = belief_map[r0_clip:r1_clip, c0_clip:c1_clip]
+
+        # --- 2) Repulsive force (Gaussian decay) ---
+        f_rep = np.zeros(2, dtype=float)
+        obs_idxs = np.argwhere(patch == 2)  # obstacles in patch
+        eps = 1e-6
+        alpha_rep = 2.0
+
+        for i, j in obs_idxs:
+            rel_row = i - half
+            rel_col = j - half
+            dx = rel_col * self.cell_size
+            dy = -rel_row * self.cell_size
+            diff = np.array([-dx, -dy], dtype=float)
+
+            dist2 = np.dot(diff, diff) + eps
+            f_rep += self.cfg.apf_k_rep * np.exp(-alpha_rep * dist2) * (diff / np.sqrt(dist2))
+
+        # --- 3) Attractive force from all frontiers ---
+        f_att = np.zeros(2, dtype=float)
+        eps = 1e-6
+        alpha_att = 1.0  # attraction decay
+
+        drone_pos = get_coords_from_cell_position(np.array([c, r]), map_info)
+
+        if frontier_pixels.size > 0:
+            for row, col in frontier_pixels:
+                frontier_pos = get_coords_from_cell_position(np.array([col, row]), map_info)
+                diff = (frontier_pos - drone_pos).flatten()
+                dist2 = np.dot(diff, diff) + eps
+                weight = np.exp(-alpha_att * dist2)
+                f_att += self.cfg.apf_k_att * weight * (diff / np.sqrt(dist2))
+
+                # patch에 frontier 표시
+                if r0 <= row < r1 and c0 <= col < c1:
+                    pr = row - r0
+                    pc = col - c0
+                    if 0 <= pr < self.patch_size and 0 <= pc < self.patch_size:
+                        patch[pr, pc] = 3
+
+        # --- 4) 합산 및 반환 ---
+        apf_vec = f_att + f_rep
+        return apf_vec, patch
+

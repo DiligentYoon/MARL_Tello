@@ -223,3 +223,66 @@ def sensor_work_heading(robot_position,
         robot_belief = collision_check(x0, y0, x1, y1, ground_truth, robot_belief, map_mask)
 
     return robot_belief
+
+
+def extract_frontier_pixels(belief_map, map_info,
+                            drone_pose, fov_deg=120.0,
+                            num_rays=40) -> np.ndarray:
+    """
+    드론의 현재 위치(x, y, yaw)와 belief_map을 바탕으로
+    raycasting 방식으로 frontier pixel을 추출
+
+    Parameters:
+    - belief_map : 2D grid (0=free, 1=unknown, 2=obstacle)
+    - map_info   : MapInfo 객체
+    - drone_pose : np.ndarray of shape (3,) → [x, y, yaw] (degrees)
+    - fov_deg    : 시야각 (degree)
+    - num_rays   : 시야각 내 몇 개의 방향으로 ray를 쏠지
+
+    Returns:
+    - frontiers: np.ndarray of (row, col) tuples
+    """
+    from math import cos, sin, radians
+
+    # 고정된 max range (meter 단위)
+    max_range = 5.0
+
+    H, W = belief_map.shape
+    cell_size = map_info.cell_size
+    origin_x = map_info.map_origin_x
+    origin_y = map_info.map_origin_y
+
+    x, y, yaw_deg = drone_pose
+    yaw_rad = np.deg2rad(yaw_deg)
+
+    angles = np.linspace(-fov_deg / 2, fov_deg / 2, num_rays)
+    frontier_coords = []
+
+    for angle_deg in angles:
+        angle_rad = yaw_rad + radians(angle_deg)
+        dx = cos(angle_rad)
+        dy = sin(angle_rad)
+
+        steps = int(max_range / cell_size)
+        for step in range(1, steps + 1):
+            wx = x + dx * step * cell_size
+            wy = y + dy * step * cell_size
+
+            # 월드 → 셀
+            col = int((wx - origin_x) / cell_size)
+            row = int(H - 1 - (wy - origin_y) / cell_size)
+
+            if not (0 <= row < H and 0 <= col < W):
+                break
+
+            val = belief_map[row, col]
+
+            if val == 0:  # free → 계속 탐색
+                continue
+            elif val == 1:  # unknown → frontier
+                frontier_coords.append((row, col))
+                break
+            elif val == 2:  # obstacle → 차단
+                break
+
+    return np.array(frontier_coords)

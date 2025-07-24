@@ -20,14 +20,14 @@ class APFEnvCfg(EnvCfg):
 
         # Episode Information
         self.decimation = 1
-        self.max_episode_steps = 128
+        self.max_episode_steps = 128*2
 
         # APF Information
         self.apf_k_att = 1.0
-        self.apf_k_rep = 0.5
+        self.apf_k_rep = 0.3
 
         # Local Patch Information
-        self.patch_size = 30
+        self.patch_size = 100
         
 
         # Reward Hyperparameter (TBD)

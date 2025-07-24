@@ -65,6 +65,7 @@ class Env():
     def reset(self, episode_index: int = None) -> Tuple[np.ndarray, np.ndarray]:
         if episode_index is not None:
             self.episode_index = episode_index
+            
         # Load ground truth map and initial cell
         self.num_step = 0
         self.ground_truth, _ = self.import_ground_truth(self.episode_index)
