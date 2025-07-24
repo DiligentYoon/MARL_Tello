@@ -106,6 +106,7 @@ class Env():
                 self.map_mask
             )
 
+        self.belief_info.map = self.robot_belief.copy()
         self.prev_dists = [np.linalg.norm(self.robot_locations[i] - self.goal_coords) for i in range(self.num_agent)]
         
         self._compute_intermediate_values()
@@ -182,8 +183,10 @@ class Env():
                                     round((robot_location[1] - self.belief_origin_y) / self.cell_size)])
 
     def update_robot_belief(self, robot_cell, heading) -> None:
+        # robot_belief와 belief_info 내부의 map을 업데이트 및 동기화
         self.robot_belief = sensor_work_heading(robot_cell, round(self.sensor_range / self.cell_size), self.robot_belief,
                                         self.ground_truth, heading, self.fov, self.map_mask)
+        self.belief_info.map = self.robot_belief.copy()
 
 
     def step(self, actions) -> Tuple[np.ndarray,

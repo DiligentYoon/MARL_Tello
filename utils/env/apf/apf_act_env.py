@@ -105,12 +105,20 @@ class APFActEnv(Env):
         # Potential Based Reward Shaping을 수행하기 위한 현재 거리 계산
         self.cur_dists = [np.linalg.norm(self.robot_locations[i] - self.goal_coords) for i in range(self.num_agent)]
 
-        # Belief맵 기반의 Local Patch 계산
+        # Belief맵 기반의 Local Patch, Closest Obstacle 계산
         for i in range(self.num_agent):
-            drone_cell = get_cell_position_from_coords(self.robot_locations[i], self.belief_info)
-            local_patch, obstacle = self.compute_local_patch_and_obstacle(drone_cell, self.robot_belief, self.goal_coords, self.belief_info)
+            drone_pos = np.hstack((self.robot_locations[i], self.angles[i]))
+            drone_cell = get_cell_position_from_coords(drone_pos[:2], self.belief_info)
+            frontiers = self.extract_frontier_pixels(drone_pose=drone_pos)
+
+            local_patch, obstacle = self.compute_local_patch_and_obstacle(drone_cell, self.robot_belief)
+            local_patch = self.extract_frontier_pixels(local_patch, drone_pose=drone_pos)
             self.local_patches[i] = local_patch
             self.closest_obstacle_states[i] = obstacle
+
+            frontiers = self.extract_frontier_pixels(drone_pose=drone_pos)
+
+
 
         # 가장 가까운 이웃 드론 상태 계산
         for i in range(self.num_agent):
@@ -300,8 +308,7 @@ class APFActEnv(Env):
         self,
         drone_cell: np.ndarray,        # [col, row] in cell indices
         belief_map: np.ndarray,        # 2D grid of ints (0=free, 1=unknown, 2=obstacle, etc.)
-        goal_coord: np.ndarray,        # [x, y] in world units (cells × cell_size)
-        map_info: MapInfo) -> Tuple[np.ndarray, np.ndarray]:
+        ) -> Tuple[np.ndarray, np.ndarray]:
         """
             Extract a patch around the drone and compute APF.
 
@@ -358,6 +365,88 @@ class APFActEnv(Env):
         return patch, min_obs_state
     
 
+
+    def marking_frontier_pixels(self , 
+                                local_patch, 
+                                drone_pose,
+                                fov_deg=120.0,
+                                num_rays=40) -> np.ndarray:
+        
+        half = self.patch_size // 2
+        frontiers = self.extract_frontier_pixels(drone_pose=drone_pose)
+
+        if frontiers.size > 0:
+            for row, col in frontiers:
+
+                # patch에 frontier 표시
+                if r0 <= row < r1 and c0 <= col < c1:
+                    pr = row - r0
+                    pc = col - c0
+                    if 0 <= pr < self.patch_size and 0 <= pc < self.patch_size:
+                        local_patch[pr, pc] = 3
+
+
+
+
+    def extract_frontier_pixels(self,
+                                drone_pose, 
+                                fov_deg=120.0,
+                                num_rays=40) -> np.ndarray:
+        """
+        업데이트 된 Belief Map 내부에서
+        bresenham_line을 사용하여 raycasting 방식으로 frontier pixel을 추출
+        """
+        max_range = 5.0  # meter
+        map_info = self.belief_info
+        belief_map = self.robot_belief
+        H, W = belief_map.shape
+        
+        # 드론 월드 좌표 (meter)
+        drone_x_world, drone_y_world, yaw_deg = drone_pose
+        
+        # 드론 셀 좌표
+        drone_c = int((drone_x_world - map_info.map_origin_x) / map_info.cell_size)
+        drone_r = int(H - 1 - (drone_y_world - map_info.map_origin_y) / map_info.cell_size)
+
+        frontier_coords = set() # 중복 제거를 위해 set 사용
+        
+        # 시야각에 맞춰 레이를 쏠 각도 계산
+        start_angle = np.deg2rad(yaw_deg - fov_deg / 2)
+        end_angle = np.deg2rad(yaw_deg + fov_deg / 2)
+        angles = np.linspace(start_angle, end_angle, num_rays)
+
+        for angle in angles:
+            # 레이의 끝점 계산 (월드 좌표)
+            end_x_world = drone_x_world + max_range * np.cos(angle)
+            end_y_world = drone_y_world + max_range * np.sin(angle)
+            
+            # 끝점 셀 좌표
+            end_c = int((end_x_world - map_info.map_origin_x) / map_info.cell_size)
+            end_r = int(H - 1 - (end_y_world - map_info.map_origin_y) / map_info.cell_size)
+
+            # 레이 캐스팅 실행
+            prev_cell_val = None
+            for r, c in bresenham_line(drone_c, drone_r, end_c, end_r):
+                if not (0 <= r < H and 0 <= c < W):
+                    break
+
+                current_cell_val = belief_map[r, c]
+
+                # free(0) 셀을 지나 unknown(1) 셀을 만나면 프론티어로 간주
+                if prev_cell_val == self.map_mask["free"] and current_cell_val == self.map_mask["unknown"]:
+                    frontier_coords.add((r, c))
+                    break
+                
+                # 장애물(2)을 만나면 이 레이는 더 이상 진행하지 않음
+                if current_cell_val == self.map_mask["occpied"]:
+                    break
+                
+                prev_cell_val = current_cell_val
+
+        return np.array(list(frontier_coords))
+
+    
+
     def compute_apf_vector(self, agent_id: int, eps=1e-6) -> np.ndarray:
         """
             Return:
@@ -408,3 +497,5 @@ class APFActEnv(Env):
                 f_inter_rep +=  action[2] * (1/dist - 1/self.cfg.rho_agent) * diff
 
         return f_att + f_rep + f_inter_rep
+    
+

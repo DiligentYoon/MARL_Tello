@@ -133,6 +133,33 @@ def collision_check(x0, y0, x1, y1, ground_truth, robot_belief, map_mask):
     return robot_belief
 
 
+def bresenham_line(x0, y0, x1, y1):
+    """Bresenham's line algorithm을 사용하여 (x0, y0)에서 (x1, y1)까지의 모든 셀 좌표를 반환"""
+    x0, y0 = int(round(x0)), int(round(y0))
+    x1, y1 = int(round(x1)), int(round(y1))
+    
+    dx = abs(x1 - x0)
+    dy = abs(y1 - y0)
+    x, y = x0, y0
+    sx = 1 if x1 > x0 else -1
+    sy = 1 if y1 > y0 else -1
+    err = dx - dy
+
+    while True:
+        yield (y, x)  # (row, col) 순서로 반환
+
+        if x == x1 and y == y1:
+            break
+        
+        e2 = 2 * err
+        if e2 > -dy:
+            err -= dy
+            x += sx
+        if e2 < dx:
+            err += dx
+            y += sy
+
+
 def sensor_work(robot_position, sensor_range, robot_belief, ground_truth):
     sensor_angle_inc = 0.5 / 180 * np.pi
     sensor_angle = 0
