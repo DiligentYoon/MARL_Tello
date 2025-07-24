@@ -74,8 +74,6 @@ class APFActEnv(Env):
         self.robot_velocities[:] = np.linalg.norm(self.robot_2d_velocities, axis=1).reshape(-1, 1)
         
         self.robot_target_angle = np.atan2(self.robot_2d_velocities[:, 1], self.robot_2d_velocities[:, 0])
-
-        # print(f"vel : {self.robot_2d_velocities}")
         
     def _apply_action(self, agent_id, action):
         deg_error = self.robot_target_angle[agent_id] - self.angles[agent_id]
@@ -105,19 +103,16 @@ class APFActEnv(Env):
         # Potential Based Reward Shaping을 수행하기 위한 현재 거리 계산
         self.cur_dists = [np.linalg.norm(self.robot_locations[i] - self.goal_coords) for i in range(self.num_agent)]
 
-        # Belief맵 기반의 Local Patch, Closest Obstacle 계산
+        # Belief맵 기반의 Local Patch, Closest Obstacle
+        # 만들어진 Local Patch에 Frontier를 추가로 마킹
         for i in range(self.num_agent):
             drone_pos = np.hstack((self.robot_locations[i], self.angles[i]))
             drone_cell = get_cell_position_from_coords(drone_pos[:2], self.belief_info)
-            frontiers = self.extract_frontier_pixels(drone_pose=drone_pos)
 
             local_patch, obstacle = self.compute_local_patch_and_obstacle(drone_cell, self.robot_belief)
-            local_patch = self.extract_frontier_pixels(local_patch, drone_pose=drone_pos)
+            local_patch = self.marking_frontier_pixels(local_patch, drone_pose=drone_pos, drone_cell=drone_cell)
             self.local_patches[i] = local_patch
             self.closest_obstacle_states[i] = obstacle
-
-            frontiers = self.extract_frontier_pixels(drone_pose=drone_pos)
-
 
 
         # 가장 가까운 이웃 드론 상태 계산
@@ -373,11 +368,18 @@ class APFActEnv(Env):
     def marking_frontier_pixels(self , 
                                 local_patch, 
                                 drone_pose,
+                                drone_cell,
                                 fov_deg=120.0,
                                 num_rays=40) -> np.ndarray:
         
         half = self.patch_size // 2
-        frontiers = self.extract_frontier_pixels(drone_pose=drone_pose)
+        c, r = int(drone_cell[0]), int(drone_cell[1])
+        r0, r1 = r - half, r + half
+        c0, c1 = c - half, c + half
+
+        frontiers = self.extract_frontier_pixels(drone_pose=drone_pose, 
+                                                 fov_deg=fov_deg, 
+                                                 num_rays=num_rays)
 
         if frontiers.size > 0:
             for row, col in frontiers:
@@ -387,9 +389,9 @@ class APFActEnv(Env):
                     pr = row - r0
                     pc = col - c0
                     if 0 <= pr < self.patch_size and 0 <= pc < self.patch_size:
-                        local_patch[pr, pc] = 3
+                        local_patch[pr, pc] = self.map_mask["frontier"]
 
-
+        return local_patch
 
 
     def extract_frontier_pixels(self,
@@ -406,7 +408,7 @@ class APFActEnv(Env):
         H, W = belief_map.shape
         
         # 드론 월드 좌표 (meter)
-        drone_x_world, drone_y_world, yaw_deg = drone_pose
+        drone_x_world, drone_y_world, yaw_rad = drone_pose
         
         # 드론 셀 좌표
         drone_c = int((drone_x_world - map_info.map_origin_x) / map_info.cell_size)
@@ -415,8 +417,8 @@ class APFActEnv(Env):
         frontier_coords = set() # 중복 제거를 위해 set 사용
         
         # 시야각에 맞춰 레이를 쏠 각도 계산
-        start_angle = np.deg2rad(yaw_deg - fov_deg / 2)
-        end_angle = np.deg2rad(yaw_deg + fov_deg / 2)
+        start_angle = yaw_rad - np.deg2rad(fov_deg / 2)
+        end_angle = yaw_rad + np.deg2rad(fov_deg / 2)
         angles = np.linspace(start_angle, end_angle, num_rays)
 
         for angle in angles:
@@ -442,7 +444,7 @@ class APFActEnv(Env):
                     break
                 
                 # 장애물(2)을 만나면 이 레이는 더 이상 진행하지 않음
-                if current_cell_val == self.map_mask["occpied"]:
+                if current_cell_val == self.map_mask["occupied"]:
                     break
                 
                 prev_cell_val = current_cell_val
@@ -475,7 +477,6 @@ class APFActEnv(Env):
 
         drone_pos = get_coords_from_cell_position(np.array([c, r]), self.belief_info).reshape(-1)
         diff = self.goal_coords - drone_pos
-        norm = np.linalg.norm(diff) + eps
         f_att[:] = action[0] * diff
 
         # Obstacle repulsive term

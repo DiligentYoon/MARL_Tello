@@ -31,7 +31,7 @@ class APFActEnvCfg(EnvCfg):
         self.kp = 5.0
 
         # Local Patch Information
-        self.patch_size = 30
+        self.patch_size = 100
         
 
         # Reward Hyperparameter (TBD)

@@ -23,6 +23,7 @@ env:
     occupied: 2
     goal: 3
     start: 4
+    frontier: 5
 
   reward_info:
     goal_threshold: 0.2
