@@ -119,14 +119,20 @@ class Env():
 
     def _set_goal_state(self) -> np.ndarray:
         goal_cells = np.column_stack(np.nonzero(self.ground_truth == self.map_mask["goal"]))
-        goal_world = []
+        num_samples = min(self.num_agent, len(goal_cells))
 
-        for row, col in goal_cells:
-            x = self.belief_origin_x + col * self.cell_size
-            y = self.belief_origin_y + (self.ground_truth_size[0] - 1 - row) * self.cell_size
-            goal_world.append([x, y])
+        goal_indices = np.random.choice(len(goal_cells), size=num_samples)
+        sampled_cells = goal_cells[goal_indices]
 
-        return np.mean(goal_world, axis=0)
+        rows = sampled_cells[:, 0]
+        cols = sampled_cells[:, 1]
+
+        x_coords = self.belief_origin_x + cols * self.cell_size
+        y_coords = self.belief_origin_y + (self.ground_truth_size[0] - 1 - rows) * self.cell_size
+
+        sampled_goal_world = np.column_stack((x_coords, y_coords))
+
+        return np.mean(sampled_goal_world, axis=0)
 
     def _set_init_state(self) -> Tuple[np.ndarray, np.ndarray]:
         H = self.ground_truth.shape[0]
@@ -212,10 +218,8 @@ class Env():
 
         """
         
-        # stochastic action인 경우를 대비, 한번 더 클램핑
+        # Action 전처리 단계
         self._pre_apply_action(actions)
-
-        # apply action : 연구에서는 고정할 것이기 때문에 따로 함수로 안뺌.
         for i, action in enumerate(self.actions):
             # 이미 도달한 에이전트는 상태 업데이트 X
             if self.reached_goal[i]:
@@ -251,26 +255,6 @@ class Env():
 
     # =============== Base Env Methods ===================
 
-    def _pre_apply_action(self, actions):
-        """
-            actions (n x 2)
-                [n, 0] : linear velocity command of n'th agent
-                [n, 1] : angular velocity command of n'th agent
-
-        """
-        self.actions = actions
-        self.actions[:, 0] = np.clip(actions[:, 0] * self.max_lin_vel,
-                                     -self.max_lin_vel,
-                                      self.max_lin_vel)
-        
-        self.actions[:, 1] = np.clip(actions[:, 1],
-                                     -self.max_ang_vel,
-                                      self.max_ang_vel)
-        
-        self.robot_velocities[:, :] = self.actions[:, 0].reshape(-1, 1)
-
-
-
     def evaluate_exploration_rate(self):
         """
         Updates self.explored_rate to be the fraction of map cells
@@ -293,6 +277,10 @@ class Env():
 
 
     # =============== Env-Specific Abstract Methods =================
+    
+    @abstractmethod
+    def _pre_apply_action(self, actions):
+        raise NotImplementedError(f"Please implement the '_pre_apply_action' method for {self.__class__.__name__}.") 
 
     @abstractmethod
     def _apply_action(self, agent_id: int, action: np.ndarray) -> np.ndarray:

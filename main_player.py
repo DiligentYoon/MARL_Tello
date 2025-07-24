@@ -119,7 +119,7 @@ class MainPlayer:
         go_actions[:, 0] = 0.1
         go_actions[:, 1] = 0.3
         traj_cells = [[] for _ in range(self.num_agents)]
-        while not done:
+        while not done and length < 20:
             print(f"Step : ({length}/{self.env.cfg.max_episode_steps})")
 
             action, _ = self.agent.act(torch.tensor(obs), deterministic=True)
@@ -139,7 +139,6 @@ class MainPlayer:
                 ys = [c[1] for c in traj_cells[i]]
                 lines_b[i].set_data(xs, ys)
 
-
             if quivers_b:
                 quivers_b.remove()
             starts_xy = np.array([traj[-1] for traj in traj_cells])
@@ -150,7 +149,6 @@ class MainPlayer:
             arrow_scale = 10.0 # 화살표 길이 (셀 단위)
             scaled_vectors = normalized_vectors * arrow_scale
 
-            # 4. quiver 함수로 새로운 화살표들을 그림
             quivers_b = ax_b.quiver(starts_xy[:, 0], starts_xy[:, 1],          # 화살표 시작점 X, Y
                                     scaled_vectors[:, 0], -scaled_vectors[:, 1], # 화살표 방향 U, V
                                     color='cyan', angles='xy', scale_units='xy', scale=1)
@@ -163,21 +161,24 @@ class MainPlayer:
             buf_b.close()
 
             # --- 업데이트 Figure 2: truth map with path ---
-            for i in range(self.num_agents):
-                xs = [c[0] for c in traj_cells[i]]
-                ys = [c[1] for c in traj_cells[i]]
-                lines_t[i].set_data(xs, ys)
-            fig_t.canvas.draw()
-            buf_t = io.BytesIO()
-            fig_t.savefig(buf_t, format='png', bbox_inches='tight')
-            buf_t.seek(0)
-            self.truth_writer.append_data(imageio.imread(buf_t))
-            buf_t.close()
+            # for i in range(self.num_agents):
+            #     xs = [c[0] for c in traj_cells[i]]
+            #     ys = [c[1] for c in traj_cells[i]]
+            #     lines_t[i].set_data(xs, ys)
+            # truth_image = self.fig_to_image(fig_t)
+            # self.truth_writer.append_data(truth_image)
+
+            # fig_t.canvas.draw()
+            # buf_t = io.BytesIO()
+            # fig_t.savefig(buf_t, format='png', bbox_inches='tight')
+            # buf_t.seek(0)
+            # self.truth_writer.append_data(imageio.imread(buf_t))
+            # buf_t.close()
 
             # --- 업데이트 Figure 3: patches for each agent ---
             for i in range(self.num_agents):
                 axes_p[i].imshow(self.env.local_patches[i], cmap='gray', vmin=0, vmax=2)
-                axes_p[i].set_title(f"A{i} patch", fontsize=8)
+                axes_p[i].set_title(f"A{i} patch", fontsize=8)            
 
             fig_p.canvas.draw()
             buf_p = io.BytesIO()
@@ -204,8 +205,9 @@ class MainPlayer:
         self.truth_writer.close()
         self.patch_writer.close()
         plt.close(fig_b)
-        # plt.close(fig_t)
-        # plt.close(fig_p)
+        plt.close(fig_t)
+        plt.close(fig_p)
+
 
 if __name__ == '__main__':
     # 1. Load configuration

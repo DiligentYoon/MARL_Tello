@@ -41,6 +41,26 @@ class APFEnv(Env):
         return super().reset(episode_index)
     
 
+    def _pre_apply_action(self, actions):
+        """
+            actions (n x 2)
+                [n, 0] : linear velocity command of n'th agent
+                [n, 1] : angular velocity command of n'th agent
+
+        """
+        self.actions = actions
+        self.actions[:, 0] = np.clip(actions[:, 0] * self.max_lin_vel,
+                                        -self.max_lin_vel,
+                                        self.max_lin_vel)
+        
+        self.actions[:, 1] = np.clip(actions[:, 1],
+                                        -self.max_ang_vel,
+                                        self.max_ang_vel)
+        
+        self.robot_velocities[:, :] = self.actions[:, 0].reshape(-1, 1)
+
+    
+
     def _apply_action(self, agent_id: int, action: np.ndarray):
         velocity = action[0]
         yaw_rate = action[1]

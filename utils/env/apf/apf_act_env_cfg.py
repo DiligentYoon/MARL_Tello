@@ -28,7 +28,7 @@ class APFActEnvCfg(EnvCfg):
         self.apf_k_inter_rep_range = [0.0, 0.25]
         self.rho = 0.1
         self.rho_agent = 0.25
-        self.kp = 5.0
+        self.kp = 3.0
 
         # Local Patch Information
         self.patch_size = 100
