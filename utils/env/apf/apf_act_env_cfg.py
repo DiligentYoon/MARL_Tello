@@ -23,11 +23,11 @@ class APFActEnvCfg(EnvCfg):
         self.max_episode_steps = 256
 
         # APF Information
-        self.apf_k_att_range = [0.0, 0.05]
+        self.apf_k_att_range = [0.0, 0.1]
         self.apf_k_rep_range = [0.0, 0.2]
-        self.apf_k_inter_rep_range = [0.0, 0.2]
+        self.apf_k_inter_rep_range = [0.0, 0.25]
         self.rho = 0.1
-        self.rho_agent = 0.05
+        self.rho_agent = 0.25
         self.kp = 5.0
 
         # Local Patch Information

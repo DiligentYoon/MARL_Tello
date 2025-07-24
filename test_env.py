@@ -87,7 +87,7 @@ if __name__ == '__main__':
     
     
     go_actions = np.ones((num_agents, num_actions), dtype=np.float32)
-    go_actions[:, 1] = -0.61
+    go_actions[:, 1] = -0.6
     go_actions[:, 2] = -1
 
 
